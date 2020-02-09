@@ -8,7 +8,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
       # List packages that should be on the path
       # You can search for package names using nix-env -qaP | grep <name>
-      unstable.racket-minimal
+      unstable.racket
       gnupg
     ];
   }
