@@ -81,17 +81,14 @@
         [(and (= 1 (length rest-sorted-age-path-pairs))
               (> n (caar rest-sorted-age-path-pairs)))
          result]
-        [(= 1 (length rest-sorted-age-path-pairs))
+        [(or (= 1 (length rest-sorted-age-path-pairs))
+             (< n  (caadr rest-sorted-age-path-pairs)))
          (--fill-gaps rest-sorted-age-path-pairs
-                     (+ 1 n)
-                     (cons `(,n ,(cadar rest-sorted-age-path-pairs)) result))]
-        [(< n  (caadr rest-sorted-age-path-pairs))
-         (--fill-gaps rest-sorted-age-path-pairs
-                     (+ 1 n)
+                     (add1 n)
                      (cons `(,n ,(cadar rest-sorted-age-path-pairs)) result))]
         [(>= n  (caadr rest-sorted-age-path-pairs))
          (--fill-gaps (cdr rest-sorted-age-path-pairs)
-                     (+ 1 n)
+                     (add1 n)
                      (cons `(,n ,(cadadr rest-sorted-age-path-pairs)) result))]
         [#t result]))
 
@@ -115,7 +112,7 @@
 (define (fib n)
   (cond [(= n 0)  0]
         [(<= n 2) 1]
-        [#t       (+ (fib (- n 1)) (fib (- n 2)))]))
+        [#t       (+ (fib (sub1 n)) (fib (- n 2)))]))
 
 (define fib-backup-ages-to-keep (list->set (map fib (stream->list (in-range 0 15)))))
 
@@ -177,18 +174,27 @@
   (cond [(= n 0) kept-paths]
         [#t (let* ([age-path-pair (list-ref sorted-age-path-pairs n)]
                    [age           (car age-path-pair)])
-              (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
-                  (--keep-because-it-becomes-fib sorted-age-path-pairs (- n 1) (cons (cadr age-path-pair) kept-paths) fib-distance)
-                  (--keep-because-it-becomes-fib sorted-age-path-pairs (- n 1) kept-paths fib-distance)))]))
+              (--keep-because-it-becomes-fib sorted-age-path-pairs
+                                            (sub1 n)
+                                            (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
+                                                (cons (cadr age-path-pair) kept-paths)
+                                                kept-paths)
+                                            fib-distance))]))
 
 (module+ test
   (check-equal? (--keep-because-it-becomes-fib '((1 a) (5 b) (7 c) (15 d)) 3 '() 6)
                 '(c d)))
 
+(define (next-fib-ge age)
+  (first (sort (filter (lambda (fnum) (>= fnum age)) (set->list fib-backup-ages-to-keep)) <)))
+
 (define (keep-because-it-becomes-fib sorted-age-path-pairs)
-  (let* ([oldest-age (car (last sorted-age-path-pairs))]
-         [min-fib-older-than-oldest (first (sort (filter (lambda (fnum) (>= fnum oldest-age)) (set->list fib-backup-ages-to-keep)) <))])
-    (list->set (--keep-because-it-becomes-fib sorted-age-path-pairs (- (length sorted-age-path-pairs) 1) '() (- min-fib-older-than-oldest oldest-age)))))
+  (let* ([oldest-age                (car (last sorted-age-path-pairs))]
+         [min-fib-older-than-oldest (next-fib-ge oldest-age)])
+    (list->set (--keep-because-it-becomes-fib sorted-age-path-pairs
+                                            (sub1 (length sorted-age-path-pairs))
+                                            '()
+                                            (- min-fib-older-than-oldest oldest-age)))))
 
 (module+ test
   (check-equal? (keep-because-it-becomes-fib '((1 a) (5 b) (7 c) (15 d)))
