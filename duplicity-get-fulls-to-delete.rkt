@@ -10,12 +10,15 @@
 
 ;; raco pkg install gregor
 (require/typed (prefix-in gg: gregor)
-  [#:opaque Date gg:date?]
-  [gg:parse-date (-> String String Date)]
-  [gg:date=? (-> Date Date Boolean)]
-  [gg:date (->* (Integer) (Integer Integer) Date)]
-  [gg:now (-> Date)]
+  [#:opaque gg:Date gg:date?]
+  [#:opaque gg:Datetime gg:datetime?]
+  [gg:parse-date (-> String String gg:Date)]
+  [gg:date=? (-> (U gg:Date gg:Datetime) (U gg:Date gg:Datetime) Boolean)]
+  [gg:date (->* (Integer) (Integer Integer) gg:Date)]
+  [gg:now (-> gg:Datetime)]
   )
+
+(define-type Date (U gg:Date gg:Datetime))
 
 (require/typed (prefix-in gg: gregor/period)
   [#:opaque Period gg:period?]
@@ -116,7 +119,6 @@
   (car age-path-pair))
 
 (module UNTYPED racket/base
-
   (define (sort-by-age age-path-pairs)
     (sort age-path-pairs < #:key (lambda (pair) (car pair)))) ;; put into untyped region since type checker cannot work with polymorphic key-word parameter (racket 7.5)
     (provide sort-by-age))
@@ -253,8 +255,8 @@
                 (list->set `(,f ,g ,h ,i ,j ,k ,m ,n ,r ,z))) ;; drop none
   (check-equal? (kept-paths `(,e ,f ,g ,h ,i ,j ,k ,m ,n ,r ,z)
                             (fill-gaps `((0 ,e) (1 ,f) (2 ,g) (3 ,h) (4 ,i) (5 ,j) (6 ,k) (8 ,m) (9 ,n) (13 ,r)(21 ,z))))
-                (list->set `(,e ,f ,g ,h ,j ,m ,r ,z)))
-  ) ;; drop i, k, n
+                (list->set `(,e ,f ,g ,h ,j ,m ,r ,z)))  ;; drop i, k, n
+  )
 
 (: --keep-because-it-becomes-fib (-> (Listof AgePathPair) Integer (Listof Path) Integer (Listof Path)))
 (define (--keep-because-it-becomes-fib sorted-age-path-pairs n kept-paths fib-distance)
@@ -333,14 +335,57 @@
             (printf "keeping ~s\n" all-kept)
             (printf "discard ~s\n" discard))))))
 
-(: discard-all-related-to (-> Path String (Listof Path)))
-(define (discard-all-related-to sig-file backup-dir)
-  (let* ([date (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
+(: get-full-related-to (-> Path String (Listof Path)))
+(define (get-full-related-to sig-file backup-dir)
+  (let* ([date               (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
          [full-backup-files  (directory-list backup-dir)]
-         [related-files (filter (lambda ([path : Path]) (regexp-match (format ".*\\.~a\\..*" date) (path->string path))) full-backup-files)])
+         [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-full\\.~a\\..*" date) (path->string path))) full-backup-files)])
     related-files))
 
-(check-backups)
+(module+ test
+  (check-equal? (get-to-datestr-of-chain (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))
+                "20191011T121221Z")
+  (check-equal? (get-from-datestr-of-chain (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))
+                "20191011T115918Z"))
+
+(: get-to-datestr-of-chain (-> Path String))
+(define (get-to-datestr-of-chain manifest-file)
+  (regexp-replace ".*duplicity-inc\\..*\\.to\\.(.*)\\.manifest\\..*" (path->string manifest-file) "\\1"))
+
+(: get-from-datestr-of-chain (-> Path String))
+(define (get-from-datestr-of-chain manifest-file)
+  (regexp-replace ".*duplicity-inc\\.(.*)\\.to\\..*\\.manifest\\..*" (path->string manifest-file) "\\1"))
+
+(: get-increment-based-on (-> Path String (Listof Path)))
+(define (get-increment-based-on manifest-file backup-dir)
+  (let* ([from-date          (get-from-datestr-of-chain manifest-file)]
+         [to-date            (get-to-datestr-of-chain manifest-file)]
+         [full-backup-files  (directory-list backup-dir)]
+         [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-inc\\.~a\\.to\\.~a\\..*" from-date to-date) (path->string path))) full-backup-files)])
+    related-files))
+
+(: get-manifest-based-on (-> String String (U Path Void)))
+(define (get-manifest-based-on from-date-str backup-dir)
+  (let* ([full-backup-files  (directory-list backup-dir)]
+         [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str) (path->string path))) full-backup-files)])
+    (when (not (empty? related-files))
+      (first related-files))))
+
+(: --get-all-increment-manifests-of-chain (-> String String (Listof Path) (Listof Path)))
+(define (--get-all-increment-manifests-of-chain from-date backup-dir collected-manifest-files)
+  (let ([manifest (get-manifest-based-on from-date backup-dir)])
+    (if (path? manifest)
+        (begin
+          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest) backup-dir (cons manifest collected-manifest-files)))
+        collected-manifest-files)))
+
+(: get-chains-related-to (-> Path String (Listof (Listof Path))))
+(define (get-chains-related-to sig-file backup-dir)
+  (let* ([date                (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
+         [all-chain-manifests (--get-all-increment-manifests-of-chain date backup-dir '())])
+    (map (lambda ([manifest : Path]) (get-increment-based-on manifest backup-dir)) all-chain-manifests)))
+
+;; (check-backups)
 
 ;; ;; (printf "Given arguments: ~s\n"
 ;; ;;         (current-command-line-arguments))
