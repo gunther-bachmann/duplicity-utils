@@ -35,7 +35,7 @@
 (: process-config-line (->  String (HashTable Symbol String) (HashTable Symbol String)))
 (define (process-config-line line configuration)
   (cond [(string-prefix? line "#")
-           configuration]
+         configuration]
         [(string-prefix? line "backup-folder: ")
          (hash-set configuration 'backup-folder (regexp-replace "^backup-folder: (.*)" line "\\1"))]
         [#t configuration]))
@@ -121,13 +121,13 @@
 (module UNTYPED racket/base
   (define (sort-by-age age-path-pairs)
     (sort age-path-pairs < #:key (lambda (pair) (car pair)))) ;; put into untyped region since type checker cannot work with polymorphic key-word parameter (racket 7.5)
-    (provide sort-by-age))
+  (provide sort-by-age))
 
 (require/typed 'UNTYPED
   [sort-by-age ((Listof AgePathPair) -> (Listof AgePathPair)) ])
 
 (module+ test
-    (check-equal? (sort-by-age `((5 ,valid-path-20200201) (4 ,valid-path-20200203)))
+  (check-equal? (sort-by-age `((5 ,valid-path-20200201) (4 ,valid-path-20200203)))
                 `((4 ,valid-path-20200203) (5 ,valid-path-20200201) )))
 
 (: --fill-gaps (-> (Listof AgePathPair) Integer (Listof AgePathPair) (Listof AgePathPair)))
@@ -144,8 +144,8 @@
                      (cons `(,n ,(second (first rest-sorted-age-path-pairs))) result))]
         [(>= n  (first (second rest-sorted-age-path-pairs)))
          (--fill-gaps (cdr rest-sorted-age-path-pairs)
-                     (add1 n)
-                     (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
+                      (add1 n)
+                      (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
         [#t result]))
 
 (module+ test
@@ -264,11 +264,11 @@
         [#t (let* ([age-path-pair (list-ref sorted-age-path-pairs n)]
                    [age           (car age-path-pair)])
               (--keep-because-it-becomes-fib sorted-age-path-pairs
-                                            (sub1 n)
-                                            (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
-                                                (cons (cadr age-path-pair) kept-paths)
-                                                kept-paths)
-                                            fib-distance))]))
+                                             (sub1 n)
+                                             (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
+                                                 (cons (cadr age-path-pair) kept-paths)
+                                                 kept-paths)
+                                             fib-distance))]))
 
 (module+ test
   (check-equal? (--keep-because-it-becomes-fib `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
@@ -283,9 +283,9 @@
   (let* ([oldest-age                (car (last sorted-age-path-pairs))]
          [min-fib-older-than-oldest (next-fib-ge oldest-age)])
     (list->set (--keep-because-it-becomes-fib sorted-age-path-pairs
-                                            (sub1 (length sorted-age-path-pairs))
-                                            '()
-                                            (- min-fib-older-than-oldest oldest-age)))))
+                                              (sub1 (length sorted-age-path-pairs))
+                                              '()
+                                              (- min-fib-older-than-oldest oldest-age)))))
 
 (module+ test
   (check-equal? (keep-because-it-becomes-fib `((1 ,a) (5 ,b) (7 ,c) (15 ,d)))
@@ -335,10 +335,9 @@
             (printf "keeping ~s\n" all-kept)
             (printf "discard ~s\n" discard))))))
 
-(: get-full-related-to (-> Path String (Listof Path)))
-(define (get-full-related-to sig-file backup-dir)
+(: get-full-related-to (-> Path String (Listof Path) (Listof Path)))
+(define (get-full-related-to sig-file backup-dir full-backup-files)
   (let* ([date               (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
-         [full-backup-files  (directory-list backup-dir)]
          [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-full\\.~a\\..*" date) (path->string path))) full-backup-files)])
     related-files))
 
@@ -356,36 +355,82 @@
 (define (get-from-datestr-of-chain manifest-file)
   (regexp-replace ".*duplicity-inc\\.(.*)\\.to\\..*\\.manifest\\..*" (path->string manifest-file) "\\1"))
 
-(: get-increment-based-on (-> Path String (Listof Path)))
-(define (get-increment-based-on manifest-file backup-dir)
+(module+ test
+  (check-equal? (get-increment-based-on
+                 (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                 `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg"))))
+
+(: get-increment-based-on (-> Path (Listof Path) (Listof Path)))
+(define (get-increment-based-on manifest-file full-backup-files)
   (let* ([from-date          (get-from-datestr-of-chain manifest-file)]
          [to-date            (get-to-datestr-of-chain manifest-file)]
-         [full-backup-files  (directory-list backup-dir)]
          [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-inc\\.~a\\.to\\.~a\\..*" from-date to-date) (path->string path))) full-backup-files)])
     related-files))
 
-(: get-manifest-based-on (-> String String (U Path Void)))
-(define (get-manifest-based-on from-date-str backup-dir)
-  (let* ([full-backup-files  (directory-list backup-dir)]
-         [related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str) (path->string path))) full-backup-files)])
+(module+ test
+  (check-equal? (get-manifest-based-on
+                 "20191011T115918Z"
+                 `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))
+
+(: get-manifest-based-on (-> String (Listof Path) (U Path Void)))
+(define (get-manifest-based-on from-date-str full-backup-files)
+  (let* ([related-files      (filter (lambda ([path : Path]) (regexp-match (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str) (path->string path))) full-backup-files)])
     (when (not (empty? related-files))
       (first related-files))))
 
-(: --get-all-increment-manifests-of-chain (-> String String (Listof Path) (Listof Path)))
-(define (--get-all-increment-manifests-of-chain from-date backup-dir collected-manifest-files)
-  (let ([manifest (get-manifest-based-on from-date backup-dir)])
+(module+ test
+  (check-equal? (--get-all-increment-manifests-of-chain
+                 "20191011T115918Z"
+                 `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg"))
+                 '())
+                `(,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))))
+
+(: --get-all-increment-manifests-of-chain (-> String (Listof Path) (Listof Path) (Listof Path)))
+(define (--get-all-increment-manifests-of-chain from-date full-backup-files collected-manifest-files)
+  (let ([manifest (get-manifest-based-on from-date full-backup-files)])
     (if (path? manifest)
         (begin
-          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest) backup-dir (cons manifest collected-manifest-files)))
+          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest) full-backup-files (cons manifest collected-manifest-files)))
         collected-manifest-files)))
 
-(: get-chains-related-to (-> Path String (Listof (Listof Path))))
-(define (get-chains-related-to sig-file backup-dir)
-  (let* ([date                (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
-         [all-chain-manifests (--get-all-increment-manifests-of-chain date backup-dir '())])
-    (map (lambda ([manifest : Path]) (get-increment-based-on manifest backup-dir)) all-chain-manifests)))
+(module+ test
+  (check-equal? (get-chains-related-to
+                 (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
+                 `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                `((,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg"))
+                  (,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")))))
 
-;; (check-backups)
+(: get-chains-related-to (-> Path (Listof Path) (Listof (Listof Path))))
+(define (get-chains-related-to sig-file full-backup-files)
+  (let* ([date                (regexp-replace ".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1")]
+         [all-chain-manifests (--get-all-increment-manifests-of-chain date full-backup-files '())])
+    (map (lambda ([manifest : Path]) (get-increment-based-on manifest full-backup-files)) all-chain-manifests)))
+
+(check-backups)
 
 ;; ;; (printf "Given arguments: ~s\n"
 ;; ;;         (current-command-line-arguments))
