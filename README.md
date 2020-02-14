@@ -9,3 +9,5 @@ Project development makes extensive use of emacs (https://www.gnu.org/software/e
 
 Run tests within emacs using racket-mode (https://github.com/greghendershott/racket-mode) via `C-c C-t`.
 Run all tests from cli via `raco test .` in the project root.
+
+To create a standalone executable, run `raco exe --gui duplicity-get-fulls-to-delete.rkt`
