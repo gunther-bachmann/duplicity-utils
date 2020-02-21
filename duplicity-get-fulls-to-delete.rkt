@@ -15,19 +15,19 @@
   [gg:date (->* (Integer) (Integer Integer) gg:Date)]
   [gg:now (-> gg:Datetime)])
 
-(define-type Date (U gg:Date gg:Datetime))
-
 (require/typed (prefix-in gg: gregor/period)
   [#:opaque Period gg:period?]
   [gg:period-between (-> Date Date (Listof Symbol) Period)]
   [gg:period-ref (-> Period Symbol Integer)])
 
+(define-type Date (U gg:Date gg:Datetime))
 (define-type AgePathPair (List Integer Path))
+(define-type Configuration (HashTable Symbol String))
 
 (: full-backup-ls-pattern String)
 (define full-backup-ls-pattern "duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
 
-(: process-config-line : String (HashTable Symbol String) -> (HashTable Symbol String))
+(: process-config-line : String Configuration -> Configuration)
 (define (process-config-line line configuration)
   (cond [(string-prefix? line "#")
          configuration]
@@ -35,10 +35,10 @@
          (hash-set configuration 'backup-folder (regexp-replace "^backup-folder: (.*)" line "\\1"))]
         [#t configuration]))
 
-(: empty-config-hash (HashTable Symbol String))
+(: empty-config-hash Configuration)
 (define empty-config-hash (hash))
 
-(: read-configuration : String -> (HashTable Symbol String))
+(: read-configuration : String -> Configuration)
 (define (read-configuration file-name)
   (foldr (lambda ([arg : String] [acc : (HashTable Symbol String)]) (process-config-line arg acc)) empty-config-hash (file->lines file-name)))
 
@@ -83,7 +83,7 @@
   (check-exn exn:fail?
              (lambda () (backup-date invalid-path))))
 
-(: backup-age-in-months (->* (Path) (Date) Integer))
+(: backup-age-in-months ((Path) (Date) . ->* . Integer))
 (define (backup-age-in-months path [reference (gg:now)])
   (gg:period-ref (gg:period-between (backup-date path) reference '(months)) 'months))
 
@@ -97,7 +97,7 @@
   (check-equal? (backup-age-in-months valid-path-20200502 (gg:date 2020 07 01))
                 1))
 
-(: pair-with-age (->* ((Listof Path)) (Date) (Listof AgePathPair)))
+(: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
 (define (pair-with-age paths [reference-date (gg:now)])
   (map (lambda ([path : Path]) `(,(backup-age-in-months path reference-date) ,path)) paths))
 

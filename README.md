@@ -11,3 +11,5 @@ Run tests within emacs using racket-mode (https://github.com/greghendershott/rac
 Run all tests from cli via `raco test .` in the project root.
 
 To create a standalone executable, run `raco exe --gui duplicity-get-fulls-to-delete.rkt`
+
+To run a coverage analysis execute `raco cover duplicity-get-fulls-to-delete.rkt` and visit file:coverage/index.html
