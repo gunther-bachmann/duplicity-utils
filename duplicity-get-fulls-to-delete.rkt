@@ -144,8 +144,8 @@
                      (cons `(,n ,(second (first rest-sorted-age-path-pairs))) result))]
         [(>= n  (first (second rest-sorted-age-path-pairs)))
          (--fill-gaps (cdr rest-sorted-age-path-pairs)
-                      (add1 n)
-                      (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
+                     (add1 n)
+                     (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
         [#t result]))
 
 (module+ test
@@ -169,10 +169,6 @@
 (define (fill-gaps sorted-age-path-pairs)
   (reverse (--fill-gaps sorted-age-path-pairs 0 '())))
 
-
-
-
-
 (: fib (-> Integer Integer))
 (define (fib n)
   (cond [(= n 0)  0]
@@ -188,9 +184,9 @@
   (check-true (set-member? fib-backup-ages-to-keep 0))
   (check-false (set-member? fib-backup-ages-to-keep (- (fib 10) 1))))
 
-(: keep-backup-since-age-is-fib? (-> AgePathPair Boolean))
-(define (keep-backup-since-age-is-fib? age-backup-pair)
-  (set-member? fib-backup-ages-to-keep (first age-backup-pair)))
+(: keep-backup-since-age-is-kept? (-> (Setof Integer) AgePathPair Boolean))
+(define (keep-backup-since-age-is-kept? backup-ages-to-keep age-backup-pair)
+  (set-member? backup-ages-to-keep (first age-backup-pair)))
 
 (: age-path-pairs->paths (-> (Listof AgePathPair) (Setof Path)))
 (define (age-path-pairs->paths age-path-pairs)
@@ -263,57 +259,55 @@
                 (list->set `(,e ,f ,g ,h ,j ,m ,r ,z)))  ;; drop i, k, n
   )
 
-(: --keep-because-it-becomes-fib (-> (Listof AgePathPair) Integer (Listof Path) Integer (Listof Path)))
-(define (--keep-because-it-becomes-fib sorted-age-path-pairs n kept-paths fib-distance)
+(: --keep-because-it-becomes-relevant (-> (Listof AgePathPair) Integer (Listof Path) Integer (Listof Path)))
+(define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
   (cond [(= n 0) kept-paths]
         [#t (let* ([age-path-pair (list-ref sorted-age-path-pairs n)]
                    [age           (car age-path-pair)])
-              (--keep-because-it-becomes-fib sorted-age-path-pairs
-                                             (sub1 n)
-                                             (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
-                                                 (cons (cadr age-path-pair) kept-paths)
-                                                 kept-paths)
-                                             fib-distance))]))
+              (--keep-because-it-becomes-relevant sorted-age-path-pairs
+                                                 (sub1 n)
+                                                 (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
+                                                     (cons (cadr age-path-pair) kept-paths)
+                                                     kept-paths)
+                                                 fib-distance))]))
 
 (module+ test
-  (check-equal? (--keep-because-it-becomes-fib `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
+  (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
                 `(,c ,d)))
 
 (: next-age-ge (-> Integer (Setof Integer) Integer))
+;; get next age greater or equal within the list of backup ages to keep
 (define (next-age-ge age backup-ages-to-keep)
   (first (sort (filter (lambda ([fnum : Integer]) (>= fnum age)) (set->list backup-ages-to-keep)) <)))
 
-;; (: keep-because-it-becomes-fib (-> (Listof AgePathPair) (Setof Path)))
-;; (define (keep-because-it-becomes-fib sorted-age-path-pairs)
-;;   (let* ([oldest-age                (first (last sorted-age-path-pairs))]
-;;          [min-fib-older-than-oldest (next-age-ge oldest-age fib-backup-ages-to-keep)])
-;;     (list->set (--keep-because-it-becomes-fib sorted-age-path-pairs
-;;                                               (sub1 (length sorted-age-path-pairs))
-;;                                               '()
-;;                                               (- min-fib-older-than-oldest oldest-age)))))
+(module+ test
+  (check-equal? (next-age-ge 3 (set 1 2 7 9)) 7)
+  (check-equal? (next-age-ge 3 (set 1 2 4 9)) 4)
+  (check-equal? (next-age-ge 3 (set 1 3 9)) 3)
+  (check-exn #rx".*contract violation.*" (lambda () (next-age-ge 10 (set 1 3 9)))))
 
-(: keep-first-four (-> (Listof Path) (Listof AgePathPair) (Setof Path)))
-(define (keep-first-four all-paths age-path-pairs)
-  (list->set (take all-paths (min (length all-paths) 4))))
+(: keep-first-n (-> Integer (Listof Path) (Listof AgePathPair) (Setof Path)))
+(define (keep-first-n n all-paths age-path-pairs)
+  (list->set (take all-paths (min (length all-paths) n))))
 
 (: keep-oldest (-> (Listof Path) (Listof AgePathPair) (Setof Path)))
 (define (keep-oldest all-paths age-path-pairs)
   (set (cadr (last (sort-by-age age-path-pairs)))))
 
-(: keep-by-age-list (-> (Listof Path) (Listof AgePathPair) (Setof Path)))
-(define (keep-by-age-list all-paths age-path-pairs)
-  (let ([filled-age-file-pairs (fill-gaps age-path-pairs)])
-    (age-path-pairs->paths (filter keep-backup-since-age-is-fib? filled-age-file-pairs))))
+(: keep-by-age-list (-> (Setof Integer) (Listof Path) (Listof AgePathPair) (Setof Path)))
+(define (keep-by-age-list backup-ages-to-keep all-paths age-path-pairs)
+  (let ([filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs))])
+    (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs))))
 
 (: keep-because-it-becomes-relevant (-> (Setof Integer) (Listof Path) (Listof AgePathPair) (Setof Path)))
 (define (keep-because-it-becomes-relevant backup-ages-to-keep all-paths age-path-pairs)
-  (let* ([sorted-age-path-pairs     (fill-gaps age-path-pairs)]
+  (let* ([sorted-age-path-pairs     (fill-gaps (sort-by-age age-path-pairs))]
          [oldest-age                (first (last sorted-age-path-pairs))]
          [min-fib-older-than-oldest (next-age-ge oldest-age backup-ages-to-keep)])
-    (list->set (--keep-because-it-becomes-fib sorted-age-path-pairs
-                                              (sub1 (length sorted-age-path-pairs))
-                                              '()
-                                              (- min-fib-older-than-oldest oldest-age)))))
+    (list->set (--keep-because-it-becomes-relevant sorted-age-path-pairs
+                                                 (sub1 (length sorted-age-path-pairs))
+                                                 '()
+                                                 (- min-fib-older-than-oldest oldest-age)))))
 
 (module+ test
   (check-equal? (keep-because-it-becomes-relevant fib-backup-ages-to-keep (list a b c d) `((1 ,a) (5 ,b) (7 ,c) (15 ,d)))
@@ -321,9 +315,9 @@
 
 (: backup-keep-functions (Listof (-> (Listof Path) (Listof AgePathPair) (Setof Path))))
 (define backup-keep-functions
-  (list keep-first-four
+  (list (curry keep-first-n 4)
         keep-oldest
-        keep-by-age-list
+        (curry keep-by-age-list fib-backup-ages-to-keep)
         (curry keep-because-it-becomes-relevant fib-backup-ages-to-keep)))
 
 (: --kept-paths (-> (Listof Path) (Listof AgePathPair) (Setof Path) (Listof (-> (Listof Path) (Listof AgePathPair) (Setof Path))) (Setof Path)))
@@ -332,10 +326,10 @@
          path-set]
         [#t
          (--kept-paths all-paths
-                       age-path-pairs
-                       (set-union path-set
-                                  ((first keep-functions) all-paths age-path-pairs))
-                       (rest keep-functions))]))
+                      age-path-pairs
+                      (set-union path-set
+                                 ((first keep-functions) all-paths age-path-pairs))
+                      (rest keep-functions))]))
 
 (module+ test
   (check-equal? (--kept-paths '() '() (set) '())
@@ -360,7 +354,7 @@
                                (4 ,valid-path-20200502)
                                (5 ,valid-path-20200514))
                              (set)
-                             (list keep-first-four))
+                             (list (curry keep-first-n 4)))
                 (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200502))
   (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
                              `((1 ,valid-path-20200101)
@@ -369,7 +363,7 @@
                                (4 ,valid-path-20200502)
                                (5 ,valid-path-20200514))
                              (set)
-                             (list keep-by-age-list))
+                             (list (curry  keep-by-age-list fib-backup-ages-to-keep)))
                 (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200514))
   (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
                              `((1 ,valid-path-20200101)
