@@ -1,27 +1,39 @@
 #! /usr/bin/env racket
 #lang typed/racket
 
+;; find out which months can be deleted from backup given the following:
+;; - full backups are done monthly, incrementals sub monthly
+;; - keep a number (4) of most recent full
+;; - keep the oldest
+;; - keep all with a months age matching a fibonacci number
+;; - keep those that will (in time) have a months age matching a fibonacci number,
+;;   when the oldest backup matches a fibonacci number
+
+;; automatic installation of racket packages is problematic:
 ;; problem is that no racket packages can be installed into the racket-minimal installation used by shell-nix
 ;; #! /usr/bin/env nix-shell
 ;; #! nix-shell -i racket -p racket-minimal
 
-(require typed/racket)
-
+;; import gregorian dates with typing
 (require/typed (prefix-in gg: gregor)
   [#:opaque gg:Date gg:date?]
   [#:opaque gg:Datetime gg:datetime?]
-  [gg:parse-date (-> String String gg:Date)]
-  [gg:date=? (-> (U gg:Date gg:Datetime) (U gg:Date gg:Datetime) Boolean)]
-  [gg:date (->* (Integer) (Integer Integer) gg:Date)]
+  [gg:parse-date (String String -> gg:Date)]
+  [gg:date=? ((U gg:Date gg:Datetime) (U gg:Date gg:Datetime) -> Boolean)]
+  [gg:date ((Integer) (Integer Integer) . ->* . gg:Date)]
   [gg:now (-> gg:Datetime)])
 
+;; import gregorian periods with typing
 (require/typed (prefix-in gg: gregor/period)
   [#:opaque Period gg:period?]
-  [gg:period-between (-> Date Date (Listof Symbol) Period)]
-  [gg:period-ref (-> Period Symbol Integer)])
+  [gg:period-between (Date Date (Listof Symbol) -> Period)]
+  [gg:period-ref (Period Symbol -> Integer)])
 
+;; treat Date and Datetime uniformly herein
 (define-type Date (U gg:Date gg:Datetime))
+;; age (in months) and file path
 (define-type AgePathPair (List Integer Path))
+;; configuration fetched from file
 (define-type Configuration (HashTable Symbol String))
 
 (: full-backup-ls-pattern String)
@@ -105,6 +117,7 @@
   (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203) (gg:date 2020 07 01))
                 `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
 
+;; module with untyped definitions that would not typecheck
 (module UNTYPED racket/base
   (define (sort-by-age age-path-pairs)
     (sort age-path-pairs < #:key (lambda (pair) (car pair)))) ;; put into untyped region since type checker cannot work with polymorphic key-word parameter (racket 7.5)
