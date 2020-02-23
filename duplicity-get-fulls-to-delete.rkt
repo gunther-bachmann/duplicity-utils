@@ -39,20 +39,34 @@
 (: full-backup-ls-pattern Regexp)
 (define full-backup-ls-pattern #rx"duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
 
+(: known-config-keys (HashTable String Boolean))
+(define known-config-keys (hash "backup-folder" #t))
+
 (: process-config-line : String Configuration -> Configuration)
 (define (process-config-line line configuration)
-  (cond [(string-prefix? line "#")
-         configuration]
-        [(string-prefix? line "backup-folder: ")
-         (hash-set configuration 'backup-folder (regexp-replace "^backup-folder: (.*)" line "\\1"))]
-        [else configuration]))
+  (define matched (regexp-match #rx"^([^:]*): (.*)" line))
+  (if matched
+      (let ([key (list-ref (cdr matched) 0)] ;; regexp could return this to be #f
+            [value (list-ref (cdr matched) 1)]) ;; same ...
+        (if (and (string? key) ;; to ensure that resulting type is correct
+                 (string? value) ;; same ...
+                 (hash-has-key? known-config-keys key))
+            (hash-set configuration (string->symbol key) value)
+            configuration))
+      configuration))
 
 (: empty-config-hash Configuration)
 (define empty-config-hash (hash))
 
-(: read-configuration : String -> Configuration)
-(define (read-configuration file-name)
-  (foldr (lambda ([arg : String] [acc : (HashTable Symbol String)]) (process-config-line arg acc)) empty-config-hash (file->lines file-name)))
+(module+ test
+  (check-equal? (read-configuration '("backup-folder: some/folder" "# some comment" "unknown-prefix: ignored"))
+                (hash 'backup-folder "some/folder")))
+
+(: read-configuration : (Listof String) -> Configuration)
+(define (read-configuration file-lines)
+  (foldl (lambda ([arg : String] [acc : (HashTable Symbol String)]) (process-config-line arg acc))
+         empty-config-hash
+         file-lines))
 
 ;; setup test data
 (module+ test
@@ -428,7 +442,7 @@
 
 (define (check-backups)
   (printf "locating configuration\n")
-  (define config     (read-configuration (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config")))
+  (define config     (read-configuration (file->lines (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config"))))
   (define backup-dir (hash-ref config 'backup-folder))
   (cond [(directory-exists? backup-dir)
          (printf "dir ~s exists\n" backup-dir)
