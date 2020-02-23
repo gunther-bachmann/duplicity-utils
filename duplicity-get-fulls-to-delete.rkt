@@ -273,8 +273,7 @@
   (define all-ge (filter (lambda ([fnum : Nonnegative-Integer]) (>= fnum age)) (set->list backup-ages-to-keep)))
   (define asc-sorted-ages (sort all-ge <))
   (define first-ge (if (empty? asc-sorted-ages) age (first asc-sorted-ages)))
-  (cond [(>= first-ge age) first-ge]
-        [else age]))
+  (if (>= first-ge age) first-ge age))
 
 (define-type KeepFunction ((Listof Path) (Listof AgePathPair) -> (Setof Path)))
 
