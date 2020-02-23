@@ -7,9 +7,11 @@
 
    Project development makes extensive use of [[https://www.gnu.org/software/emacs/][emacs]], [[https://racket-lang.org/][racket]], [[https://nixos.org/nix/][nix]] and [[https://direnv.net/][direnv]].
 
-   Run tests within emacs using [[https://github.com/greghendershott/racket-mode][racket-mode]] via `C-c C-t`.
+   Run tests within emacs using [[https://github.com/greghendershott/racket-mode][racket-mode]] via ~C-c C-t~.
    Run all tests from cli via ~raco test .~ in the project root.
 
    To create a standalone executable, run ~raco exe --gui duplicity-get-fulls-to-delete.rkt~
 
    For coverage analysis, execute ~raco cover duplicity-get-fulls-to-delete.rkt~ and visit file:coverage/index.html
+
+   Create documentation by executing e.g. ~raco scribble literate-p.rkt~.
