@@ -1,5 +1,5 @@
 #! /usr/bin/env racket
-#lang typed/racket
+#lang typed/racket #:with-refinements
 
 ;; find out which months can be deleted from backup given the following:
 ;; - full backups are done monthly, incrementals sub monthly
@@ -32,7 +32,7 @@
 ;; treat Date and Datetime uniformly herein
 (define-type Date (U gg:Date gg:Datetime))
 ;; age (in months) and file path
-(define-type AgePathPair (List Integer Path))
+(define-type AgePathPair (List Nonnegative-Integer Path))
 ;; configuration fetched from file
 (define-type Configuration (HashTable Symbol String))
 
@@ -85,22 +85,22 @@
   (define z (string->path "z"))
   (: valid-path-20200101 Path)
   (define valid-path-20200101
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20200101T182223Z.sigtar.gpg"))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200101T182223Z.sigtar.gpg"))
   (: valid-path-20200201 Path)
   (define valid-path-20200201
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20200201T172223Z.sigtar.gpg"))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200201T172223Z.sigtar.gpg"))
   (: valid-path-20200203 Path)
   (define valid-path-20200203
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20200203T112223Z.sigtar.gpg"))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200203T112223Z.sigtar.gpg"))
   (: valid-path-20200514 Path)
   (define valid-path-20200514
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20200514T082223Z.sigtar.gpg"))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200514T082223Z.sigtar.gpg"))
   (: valid-path-20200502 Path)
   (define valid-path-20200502
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20200502T092223Z.sigtar.gpg"))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200502T092223Z.sigtar.gpg"))
   (: invalid-path Path)
   (define invalid-path
-    (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signures.20200201T172223Z.sigtar.gpg")))
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signures.20200201T172223Z.sigtar.gpg")))
 
 (module+ test
   (check-equal? (matched-backup-file valid-path-20200201)
@@ -132,9 +132,12 @@
   (check-equal? (backup-age-in-months valid-path-20200502 (gg:date 2020 07 01))
                 1))
 
-(: backup-age-in-months ((Path) (Date) . ->* . Integer))
+(: backup-age-in-months ((Path) (Date) . ->* . Nonnegative-Integer))
 (define (backup-age-in-months path [reference (gg:now)])
-  (gg:period-ref (gg:period-between (backup-date path) reference '(months)) 'months))
+  (define result (gg:period-ref (gg:period-between (backup-date path) reference '(months)) 'months))
+  (cond [(>= result 0) result]
+        [else (error "backups cannot date in the future" path)]))
+
 
 (module+ test
   (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203) (gg:date 2020 07 01))
@@ -171,25 +174,33 @@
   (check-equal? (--fill-gaps '() 0 '())
                 '()))
 
-(: --fill-gaps : (Listof AgePathPair) Integer (Listof AgePathPair) -> (Listof AgePathPair))
-(define (--fill-gaps rest-sorted-age-path-pairs n result)
-  (cond [(empty? rest-sorted-age-path-pairs)
-         result]
-        [(and (= 1 (length rest-sorted-age-path-pairs))
-              (> n (first (first rest-sorted-age-path-pairs))))
-         result]
-        [(or (= 1 (length rest-sorted-age-path-pairs))
-             (< n (first (second rest-sorted-age-path-pairs))))
-         (--fill-gaps rest-sorted-age-path-pairs
+(: --fill-gaps : (Listof AgePathPair) Nonnegative-Integer (Listof AgePathPair) -> (Listof AgePathPair))
+(define (--fill-gaps remaining-age-path-pairs n current-result)
+  (cond [(empty? remaining-age-path-pairs)
+         current-result]
+        [(and (= 1 (length remaining-age-path-pairs))
+              (> n (first (first remaining-age-path-pairs))))
+         current-result]
+        [(or (= 1 (length remaining-age-path-pairs))
+             (< n (first (second remaining-age-path-pairs))))
+         (--fill-gaps remaining-age-path-pairs
                      (add1 n)
-                     (cons `(,n ,(second (first rest-sorted-age-path-pairs))) result))]
-        [(>= n  (first (second rest-sorted-age-path-pairs)))
-         (--fill-gaps (cdr rest-sorted-age-path-pairs)
+                     (cons `(,n ,(second (first remaining-age-path-pairs))) current-result))]
+        [(>= n  (first (second remaining-age-path-pairs)))
+         (--fill-gaps (cdr remaining-age-path-pairs)
                      (add1 n)
-                     (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
-        [else result]))
+                     (cons `(,n ,(second (second remaining-age-path-pairs))) current-result))]
+        [else current-result]))
 
 (module+ test
+  (check-equal? (fill-gaps '())
+                '())
+  (check-equal? (fill-gaps `((0 ,valid-path-20200101)))
+                `((0 , valid-path-20200101)))
+  (check-equal? (fill-gaps `((2 ,valid-path-20200101)))
+                `((0 , valid-path-20200101)
+                  (1 , valid-path-20200101)
+                  (2 , valid-path-20200101)))
   (check-equal? (fill-gaps `((1 ,valid-path-20200514) (4 ,valid-path-20200203) (6 ,valid-path-20200101)))
                 `((0 ,valid-path-20200514)
                   (1 ,valid-path-20200514)
@@ -210,21 +221,21 @@
   (check-equal? (fib 3) 2)
   (check-equal? (fib 10) 55))
 
-(: fib : Integer -> Integer)
+(: fib : Nonnegative-Integer -> Nonnegative-Integer)
 (define (fib n)
-  (cond [(= n 0)  0]
-        [(<= n 2) 1]
-        [else     (+ (fib (sub1 n)) (fib (- n 2)))]))
+  (cond [(= n 0) 0]
+        [(< n 2) 1]
+        [else (+ (fib (- n 1)) (fib (- n 2)))]))
 
 (module+ test
   (check-true (set-member? fib-backup-ages-to-keep (fib 10)))
   (check-true (set-member? fib-backup-ages-to-keep 0))
   (check-false (set-member? fib-backup-ages-to-keep (- (fib 10) 1))))
 
-(: fib-backup-ages-to-keep (Setof Integer))
+(: fib-backup-ages-to-keep (Setof Nonnegative-Integer))
 (define fib-backup-ages-to-keep (list->set (map fib (range 0 15))))
 
-(: keep-backup-since-age-is-kept? : (Setof Integer) AgePathPair -> Boolean)
+(: keep-backup-since-age-is-kept? : (Setof Nonnegative-Integer) AgePathPair -> Boolean)
 (define (keep-backup-since-age-is-kept? backup-ages-to-keep age-backup-pair)
   (set-member? backup-ages-to-keep (first age-backup-pair)))
 
@@ -240,16 +251,20 @@
   (check-equal? (next-age-ge 3 (set 1 2 7 9)) 7)
   (check-equal? (next-age-ge 3 (set 1 2 4 9)) 4)
   (check-equal? (next-age-ge 3 (set 1 3 9)) 3)
-  (check-exn #rx".*contract violation.*" (lambda () (next-age-ge 10 (set 1 3 9)))))
+  (check-equal? (next-age-ge 10 (set 1 3 9)) 10))
 
-(: next-age-ge : Integer (Setof Integer) -> Integer)
+(: next-age-ge (([age : Nonnegative-Integer] [_ : (Setof Nonnegative-Integer)]) . -> . (Refine [next-age : Nonnegative-Integer] (>= next-age age))))
 ;; get next age greater or equal within the list of backup ages to keep
 (define (next-age-ge age backup-ages-to-keep)
-  (first (sort (filter (lambda ([fnum : Integer]) (>= fnum age)) (set->list backup-ages-to-keep)) <)))
+  (define all-ge (filter (lambda ([fnum : Nonnegative-Integer]) (>= fnum age)) (set->list backup-ages-to-keep)))
+  (define asc-sorted-ages (sort all-ge <))
+  (define first-ge (if (empty? asc-sorted-ages) age (first asc-sorted-ages)))
+  (cond [(>= first-ge age) first-ge]
+        [else age]))
 
-(define-type KeepFunction ((Listof Path) (Listof AgePathPair) . -> . (Setof Path)))
+(define-type KeepFunction ((Listof Path) (Listof AgePathPair) -> (Setof Path)))
 
-(: keep-first-n : Integer (Listof Path) (Listof AgePathPair) -> (Setof Path))
+(: keep-first-n : Nonnegative-Integer (Listof Path) (Listof AgePathPair) -> (Setof Path))
 (define (keep-first-n n all-paths age-path-pairs)
   (list->set (take all-paths (min (length all-paths) n))))
 
@@ -257,7 +272,7 @@
 (define (keep-oldest all-paths age-path-pairs)
   (set (cadr (last (sort-by-age age-path-pairs)))))
 
-(: keep-by-age-list : (Setof Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
+(: keep-by-age-list : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
 (define (keep-by-age-list backup-ages-to-keep all-paths age-path-pairs)
   (let ([filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs))])
     (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs))))
@@ -266,7 +281,7 @@
   (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
                 `(,c ,d)))
 
-(: --keep-because-it-becomes-relevant : (Listof AgePathPair) Integer (Listof Path) Integer -> (Listof Path))
+(: --keep-because-it-becomes-relevant : (Listof AgePathPair) Nonnegative-Integer (Listof Path) Nonnegative-Integer -> (Listof Path))
 (define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
   (cond [(= n 0) kept-paths]
         [else (define age-path-pair (list-ref sorted-age-path-pairs n))
@@ -283,15 +298,18 @@
   (check-equal? (keep-because-it-becomes-relevant fib-backup-ages-to-keep (list a b c d) `((1 ,a) (5 ,b) (7 ,c) (15 ,d)))
                 (set a c d)))
 
-(: keep-because-it-becomes-relevant : (Setof Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
+(: keep-because-it-becomes-relevant : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
 (define (keep-because-it-becomes-relevant backup-ages-to-keep all-paths age-path-pairs)
   (define sorted-age-path-pairs     (fill-gaps (sort-by-age age-path-pairs)))
   (define oldest-age                (first (last sorted-age-path-pairs)))
   (define min-fib-older-than-oldest (next-age-ge oldest-age backup-ages-to-keep))
-  (list->set (--keep-because-it-becomes-relevant sorted-age-path-pairs
-                                               (sub1 (length sorted-age-path-pairs))
-                                               '()
-                                               (- min-fib-older-than-oldest oldest-age))))
+  (define n (length sorted-age-path-pairs))
+  (cond [(> 1 n) (error "age-path-pairs must not be empty" age-path-pairs)]
+        [else
+         (list->set (--keep-because-it-becomes-relevant sorted-age-path-pairs
+                                                      (sub1 n)
+                                                      '()
+                                                      (- min-fib-older-than-oldest oldest-age)))]))
 
 (: backup-keep-functions (Listof KeepFunction))
 (define backup-keep-functions
@@ -410,7 +428,7 @@
 
 (define (check-backups)
   (printf "locating configuration\n")
-  (define config     (read-configuration "/home/pe/.duplicity/config"))
+  (define config     (read-configuration (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config")))
   (define backup-dir (hash-ref config 'backup-folder))
   (cond [(directory-exists? backup-dir)
          (printf "dir ~s exists\n" backup-dir)
@@ -508,7 +526,7 @@
 
 (module+ test
   (check-equal? (get-chains-related-to
-                 (string->path "/run/media/pe/harddrive/data-backup/duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
+                 (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
                    ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
                    ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
