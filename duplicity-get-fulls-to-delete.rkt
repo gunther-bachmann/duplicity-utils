@@ -45,7 +45,7 @@
          configuration]
         [(string-prefix? line "backup-folder: ")
          (hash-set configuration 'backup-folder (regexp-replace "^backup-folder: (.*)" line "\\1"))]
-        [#t configuration]))
+        [else configuration]))
 
 (: empty-config-hash Configuration)
 (define empty-config-hash (hash))
@@ -146,7 +146,7 @@
          (--fill-gaps (cdr rest-sorted-age-path-pairs)
                      (add1 n)
                      (cons `(,n ,(second (second rest-sorted-age-path-pairs))) result))]
-        [#t result]))
+        [else result]))
 
 (module+ test
   (define a (string->path "a"))
@@ -173,7 +173,7 @@
 (define (fib n)
   (cond [(= n 0)  0]
         [(<= n 2) 1]
-        [#t       (+ (fib (sub1 n)) (fib (- n 2)))]))
+        [else     (+ (fib (sub1 n)) (fib (- n 2)))]))
 
 (: fib-backup-ages-to-keep (Setof Integer))
 (define fib-backup-ages-to-keep (list->set (map fib (range 0 15))))
@@ -193,7 +193,7 @@
 
 (module+ test
   (check-equal? (age-path-pairs->paths `((0 ,a) (1 ,a) (2 ,b) (3 ,b) (4 ,c)))
-                (list->set `(,a ,b ,c))))
+                (set a b c)))
 
 (module+ test
   (define d (string->path "d"))
@@ -219,49 +219,49 @@
   (define x (string->path "x"))
   (define y (string->path "y"))
   (define z (string->path "z"))
-  (check-equal? (kept-paths `(,a ,b ,c ,d ,e ,f ,g)
+  (check-equal? (kept-paths (list a b c d e f g)
                             `((0 ,a) (1 ,b) (2 ,c) (3 ,d) (4 ,e) (5 ,f) (6 ,g)))
-                (list->set `(,a ,b ,c ,d ,f ,g))) ;; dropped e
-  (check-equal? (kept-paths `(,a ,b ,c ,d ,f ,g)
+                (set a b c d f g)) ;; dropped e
+  (check-equal? (kept-paths (list a b c d f g)
                             `((0 ,a) (1 ,a) (2 ,a) (3 ,b) (4 ,c) (5 ,c) (6 ,c) (7 ,d) (8 ,e) (9 ,f) (10 ,f) (11 ,f) (12 ,g)))
-                (list->set `(,a ,b ,c ,d ,e ,g)))
-  (check-equal? (kept-paths `(,a ,b ,c ,d ,e ,g)
+                (set a b c d e g))
+  (check-equal? (kept-paths (list a b c d e g)
                             `((0 ,a) (1 ,a) (2 ,a) (3 ,b) (4 ,c) (5 ,c) (6 ,c) (7 ,d) (8 ,e) (9 ,f) (10 ,f) (11 ,f) (12 ,g) (13 ,g) (14 ,g) (15 ,h)))
-                (list->set `(,a ,b ,c ,d ,e ,g ,h)))
-  (check-equal? (kept-paths `(,a ,b ,c ,d ,e ,g ,h)
+                (set a b c d e g h))
+  (check-equal? (kept-paths (list a b c d e g h)
                             (fill-gaps `((2 ,a) (3 ,b) (4 ,c)  (7 ,d) (8 ,e)  (9 ,f)  (12 ,g) (15 ,h))))
-                (list->set `(,a ,b ,c ,d ,e ,g ,h)))
+                (set a b c d e g h))
 
-  (check-equal? (kept-paths `(,l ,m ,n ,o ,p ,r ,u ,z)
+  (check-equal? (kept-paths (list l m n o p r u z)
                             (fill-gaps `((0 ,l) (1 ,m) (2 ,n) (3 ,o) (4 ,p) (6 ,r) (9 ,u) (14 ,z))))
-                (list->set `(,l ,m ,n ,o ,p ,r ,u ,z))) ;; drop none
-  (check-equal? (kept-paths `(,k ,l ,m ,n ,o ,p ,r ,u ,z)
+                (set l m n o p r u z)) ;; drop none
+  (check-equal? (kept-paths (list k l m n o p r u z)
                             (fill-gaps `((0 ,k) (1 ,l) (2 ,m) (3 ,n) (4 ,o) (5 ,p) (7 ,r) (10 ,u) (15 ,z))))
-                (list->set `(,k ,l ,m ,n ,p ,r ,u ,z))) ;; drop o
-  (check-equal? (kept-paths `(,j ,k ,l ,m ,n ,p ,r ,u ,z)
+                (set k l m n p r u z)) ;; drop o
+  (check-equal? (kept-paths (list j k l m n p r u z)
                             (fill-gaps `((0 ,j) (1 ,k) (2 ,l) (3 ,m) (4 ,n) (6 ,p) (8 ,r) (11 ,u) (16 ,z))))
-                (list->set `(,j ,k ,l ,m ,n ,r ,u ,z))) ;; drop p
-  (check-equal? (kept-paths `(,i ,j ,k ,l ,m ,n ,r ,u ,z)
+                (set j k l m n r u z)) ;; drop p
+  (check-equal? (kept-paths (list i j k l m n r u z)
                             (fill-gaps `((0 ,i) (1 ,j) (2 ,k) (3 ,l) (4 ,m) (5 ,n) (9 ,r) (12 ,u) (17 ,z))))
-                (list->set `(,i ,j ,k ,l ,m ,n ,r ,u ,z))) ;; drop none
-  (check-equal? (kept-paths `(,h ,i ,j ,k ,l ,m ,n ,r ,u ,z)
+                (set i j k l m n r u z)) ;; drop none
+  [check-equal? (kept-paths (list h i j k l m n r u z)
                             (fill-gaps `((0 ,h) (1 ,i) (2 ,j) (3 ,k) (4 ,l) (5 ,m) (6 ,n) (10 ,r) (13 ,u) (18 ,z))))
-                (list->set `(,h ,i ,j ,k ,m ,n ,r ,u ,z))) ;; drop l
-  (check-equal? (kept-paths `(,g ,h ,i ,j ,k ,m ,n ,r ,u ,z)
+                (set h i j k m n r u z)] ;; drop l
+  (check-equal? (kept-paths (list g h i j k m n r u z)
                             (fill-gaps `((0 ,g) (1 ,h) (2 ,i) (3 ,j) (4 ,k) (6 ,m) (7 ,n) (11 ,r) (14 ,u) (19 ,z))))
-                (list->set `(,g ,h ,i ,j ,k ,m ,n ,r ,z))) ;; drop u
-  (check-equal? (kept-paths `(,f ,g ,h ,i ,j ,k ,m ,n ,r ,z)
+                (set g h i j k m n r z)) ;; drop u
+  (check-equal? (kept-paths (list f g h i j k m n r z)
                             (fill-gaps `((0 ,f) (1 ,g) (2 ,h) (3 ,i) (4 ,j) (5 ,k) (7 ,m) (8 ,n) (12 ,r)(20 ,z))))
-                (list->set `(,f ,g ,h ,i ,j ,k ,m ,n ,r ,z))) ;; drop none
-  (check-equal? (kept-paths `(,e ,f ,g ,h ,i ,j ,k ,m ,n ,r ,z)
+                (set f g h i j k m n r z)) ;; drop none
+  (check-equal? (kept-paths (list e f g h i j k m n r z)
                             (fill-gaps `((0 ,e) (1 ,f) (2 ,g) (3 ,h) (4 ,i) (5 ,j) (6 ,k) (8 ,m) (9 ,n) (13 ,r)(21 ,z))))
-                (list->set `(,e ,f ,g ,h ,j ,m ,r ,z)))  ;; drop i, k, n
+                (set e f g h j m r z))  ;; drop i, k, n
   )
 
 (: --keep-because-it-becomes-relevant : (Listof AgePathPair) Integer (Listof Path) Integer -> (Listof Path))
 (define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
   (cond [(= n 0) kept-paths]
-        [#t (let* ([age-path-pair (list-ref sorted-age-path-pairs n)]
+        [else (let* ([age-path-pair (list-ref sorted-age-path-pairs n)]
                    [age           (first age-path-pair)])
               (--keep-because-it-becomes-relevant sorted-age-path-pairs
                                                  (sub1 n)
@@ -325,7 +325,7 @@
 (define (--kept-paths all-paths age-path-pairs path-set keep-functions)
   (cond [(empty? keep-functions)
          path-set]
-        [#t
+        [else
          (--kept-paths all-paths
                       age-path-pairs
                       (set-union path-set
