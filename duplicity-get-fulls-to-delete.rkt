@@ -34,15 +34,18 @@
 ;; age (in months) and file path
 (define-type AgePathPair (List Nonnegative-Integer Path))
 ;; configuration fetched from file
-(define-type Configuration (HashTable Symbol String))
+(define-type Configuration (Immutable-HashTable Symbol String))
 
 (: full-backup-ls-pattern Regexp)
+;; matches full backups by one signature file
 (define full-backup-ls-pattern #rx"duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
 
 (: known-config-keys (HashTable String Boolean))
+;; configuration known and processed when reading the configuration
 (define known-config-keys (hash "backup-folder" #t))
 
 (: process-config-line : String Configuration -> Configuration)
+;; process one configuration line and return enriched configuration
 (define (process-config-line line configuration)
   (define matched (regexp-match #rx"^([^:]*): (.*)" line))
   (if matched
@@ -56,6 +59,7 @@
       configuration))
 
 (: empty-config-hash Configuration)
+;; seed
 (define empty-config-hash (hash))
 
 (module+ test
@@ -63,8 +67,9 @@
                 (hash 'backup-folder "some/folder")))
 
 (: read-configuration : (Listof String) -> Configuration)
+;; duplicity configuration
 (define (read-configuration file-lines)
-  (foldl (lambda ([arg : String] [acc : (HashTable Symbol String)]) (process-config-line arg acc))
+  (foldl (lambda ([arg : String] [acc : Configuration]) (process-config-line arg acc))
          empty-config-hash
          file-lines))
 
@@ -122,6 +127,7 @@
   (check-false (matched-backup-file invalid-path)))
 
 (: matched-backup-file : Path -> (U (Pairof String (Listof (U False String))) False))
+;; either #f or the matched signatur file (without path) of a full backup
 (define (matched-backup-file path)
   (regexp-match full-backup-ls-pattern (path->string path)))
 
@@ -133,6 +139,7 @@
              (lambda () (backup-date invalid-path))))
 
 (: backup-date : Path -> Date)
+;; get that date of a full backup signature file
 (define (backup-date path)
   (gg:parse-date (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string path) "\\1") "yyyyMMdd'T'HHmmssX"))
 
@@ -147,6 +154,7 @@
                 1))
 
 (: backup-age-in-months ((Path) (Date) . ->* . Nonnegative-Integer))
+;; age in months used as backup generation
 (define (backup-age-in-months path [reference (gg:now)])
   (define result (gg:period-ref (gg:period-between (backup-date path) reference '(months)) 'months))
   (cond [(>= result 0) result]
@@ -158,6 +166,7 @@
                 `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
 
 (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
+;; pair age (or generation) with path
 (define (pair-with-age paths [reference-date (gg:now)])
   (map (lambda ([path : Path]) `(,(backup-age-in-months path reference-date) ,path)) paths))
 
@@ -189,6 +198,7 @@
                 '()))
 
 (: --fill-gaps : (Listof AgePathPair) Nonnegative-Integer (Listof AgePathPair) -> (Listof AgePathPair))
+;; fill missing generations (months) in list such that each generation is present exactly once (up to the max)
 (define (--fill-gaps remaining-age-path-pairs n current-result)
   (cond [(empty? remaining-age-path-pairs)
          current-result]
@@ -225,6 +235,7 @@
                   (6 ,valid-path-20200101))))
 
 (: fill-gaps : (Listof AgePathPair) -> (Listof AgePathPair))
+;; convenience function for --fill-gaps
 (define (fill-gaps sorted-age-path-pairs)
   (reverse (--fill-gaps sorted-age-path-pairs 0 '())))
 
@@ -247,9 +258,11 @@
   (check-false (set-member? fib-backup-ages-to-keep (- (fib 10) 1))))
 
 (: fib-backup-ages-to-keep (Setof Nonnegative-Integer))
+;; set of ages / generations perspectively kept
 (define fib-backup-ages-to-keep (list->set (map fib (range 0 15))))
 
 (: keep-backup-since-age-is-kept? : (Setof Nonnegative-Integer) AgePathPair -> Boolean)
+;; kept because of age / generation
 (define (keep-backup-since-age-is-kept? backup-ages-to-keep age-backup-pair)
   (set-member? backup-ages-to-keep (first age-backup-pair)))
 
@@ -258,6 +271,7 @@
                 (set a b c)))
 
 (: age-path-pairs->paths : (Listof AgePathPair) -> (Setof Path))
+;; extract all paths from list of age path pairs
 (define (age-path-pairs->paths age-path-pairs)
   (list->set (map (lambda ([pair : AgePathPair]) (second pair)) age-path-pairs)))
 
@@ -267,7 +281,8 @@
   (check-equal? (next-age-ge 3 (set 1 3 9)) 3)
   (check-equal? (next-age-ge 10 (set 1 3 9)) 10))
 
-(: next-age-ge (([age : Nonnegative-Integer] [_ : (Setof Nonnegative-Integer)]) . -> . (Refine [next-age : Nonnegative-Integer] (>= next-age age))))
+(: next-age-ge (([age : Nonnegative-Integer] [_ : (Setof Nonnegative-Integer)])
+                . -> . (Refine [next-age : Nonnegative-Integer] (>= next-age age))))
 ;; get next age greater or equal within the list of backup ages to keep
 (define (next-age-ge age backup-ages-to-keep)
   (define all-ge (filter (lambda ([fnum : Nonnegative-Integer]) (>= fnum age)) (set->list backup-ages-to-keep)))
@@ -278,23 +293,27 @@
 (define-type KeepFunction ((Listof Path) (Listof AgePathPair) -> (Setof Path)))
 
 (: keep-first-n : Nonnegative-Integer (Listof Path) (Listof AgePathPair) -> (Setof Path))
+;; keep the first n paths from the given list of age path pairs
 (define (keep-first-n n all-paths age-path-pairs)
   (list->set (take all-paths (min (length all-paths) n))))
 
-(: keep-oldest KeepFunction)
+(: keep-oldest : (Listof Path) (Listof AgePathPair) -> (Setof Path))
+;; keep the oldest path
 (define (keep-oldest all-paths age-path-pairs)
   (set (cadr (last (sort-by-age age-path-pairs)))))
 
 (: keep-by-age-list : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
+;; keep all paths because generation / age is in list to keep
 (define (keep-by-age-list backup-ages-to-keep all-paths age-path-pairs)
-  (let ([filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs))])
-    (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs))))
+  (define filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs)))
+  (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs)))
 
 (module+ test
   (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
                 `(,c ,d)))
 
 (: --keep-because-it-becomes-relevant : (Listof AgePathPair) Nonnegative-Integer (Listof Path) Nonnegative-Integer -> (Listof Path))
+;; keep because when oldest generation hits fib number, the given hits a fib number, too
 (define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
   (cond [(= n 0) kept-paths]
         [else (define age-path-pair (list-ref sorted-age-path-pairs n))
@@ -312,6 +331,7 @@
                 (set a c d)))
 
 (: keep-because-it-becomes-relevant : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
+;; sugar for --keep-because-it-becomes-relevant
 (define (keep-because-it-becomes-relevant backup-ages-to-keep all-paths age-path-pairs)
   (define sorted-age-path-pairs     (fill-gaps (sort-by-age age-path-pairs)))
   (define oldest-age                (first (last sorted-age-path-pairs)))
@@ -325,6 +345,7 @@
                                                       (- min-fib-older-than-oldest oldest-age)))]))
 
 (: backup-keep-functions (Listof KeepFunction))
+;; list of predicates to apply when selecting full backups to keep
 (define backup-keep-functions
   (list (curry keep-first-n 4)
         keep-oldest
@@ -385,6 +406,7 @@
                 (set valid-path-20200101 valid-path-20200201 valid-path-20200502 valid-path-20200514)))
 
 (: --kept-paths : (Listof Path) (Listof AgePathPair) (Setof Path) (Listof KeepFunction) -> (Setof Path))
+;; apply keep functions to reduce the list of available backups
 (define (--kept-paths all-paths age-path-pairs path-set keep-functions)
   (cond [(empty? keep-functions)
          path-set]
@@ -436,9 +458,11 @@
   )
 
 (: kept-paths : (Listof Path) (Listof AgePathPair) -> (Setof Path))
+;; syntactic sugar for --kept-paths
 (define (kept-paths all-paths age-path-pairs)
   (--kept-paths all-paths age-path-pairs (set) backup-keep-functions))
 
+;; simple check and print of current kept and discarded backups (no actual actions taken)
 (define (check-backups)
   (printf "locating configuration\n")
   (define config     (read-configuration (file->lines (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config"))))
@@ -459,6 +483,7 @@
          (printf "dir ~s does not exist\n" backup-dir)]))
 
 (: get-full-related-to : Path String (Listof Path) -> (Listof Path))
+;; get all files related to the following full-backup
 (define (get-full-related-to sig-file backup-dir full-backup-files)
   (define date (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1"))
   (filter (lambda ([path : Path])
@@ -472,10 +497,12 @@
                 "20191011T115918Z"))
 
 (: get-to-datestr-of-chain : Path -> String)
+;; get to date string from file name of incremental backup file
 (define (get-to-datestr-of-chain manifest-file)
   (regexp-replace #rx".*duplicity-inc\\..*\\.to\\.(.*)\\.manifest\\..*" (path->string manifest-file) "\\1"))
 
 (: get-from-datestr-of-chain : Path -> String)
+;; get from date string from file name of incremental backup file
 (define (get-from-datestr-of-chain manifest-file)
   (regexp-replace #rx".*duplicity-inc\\.(.*)\\.to\\..*\\.manifest\\..*" (path->string manifest-file) "\\1"))
 
@@ -492,6 +519,7 @@
                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg"))))
 
 (: get-increment-based-on : Path (Listof Path) -> (Listof Path))
+;; get files of the incremental backup based on the given manifest file of this increment
 (define (get-increment-based-on manifest-file full-backup-files)
   (define from-date (get-from-datestr-of-chain manifest-file))
   (define to-date   (get-to-datestr-of-chain manifest-file))
@@ -510,6 +538,7 @@
                 (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))
 
 (: get-manifest-based-on : String (Listof Path) -> (U Path Void))
+;; get manifest of incremental backup from date (string)
 (define (get-manifest-based-on from-date-str full-backup-files)
   (define related-files (filter (lambda ([path : Path])
                                   (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str)) (path->string path)))
@@ -530,6 +559,7 @@
                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))))
 
 (: --get-all-increment-manifests-of-chain : String (Listof Path) (Listof Path) -> (Listof Path))
+;; get all manifest files of all incrementals within one full (chain) starting with from-date
 (define (--get-all-increment-manifests-of-chain from-date full-backup-files collected-manifest-files)
   (let ([manifest (get-manifest-based-on from-date full-backup-files)])
     (if (path? manifest)
@@ -552,6 +582,7 @@
                    ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")))))
 
 (: get-chains-related-to : Path (Listof Path) -> (Listof (Listof Path)))
+;; get incrementals and files of those from the given full-backup
 (define (get-chains-related-to sig-file full-backup-files)
   (define date                (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1"))
   (define all-chain-manifests (--get-all-increment-manifests-of-chain date full-backup-files '()))
