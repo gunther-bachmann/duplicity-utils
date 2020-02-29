@@ -657,17 +657,25 @@
 ;; simple check and print of current kept and discarded backups (no actual actions taken)
 (define (check-backups)
   (printf "locating configuration\n")
-  (define config     (read-configuration (file->lines (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config"))))
+  (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config"))))
   (define backup-dir (hash-ref config 'backup-folder))
   (cond [(directory-exists? backup-dir)
          (printf "dir ~s exists\n" backup-dir)
          (define full-backup-files   (directory-list backup-dir))
          (define full-sig-files      (filter matched-backup-file full-backup-files))
          (define classified-sigfiles (classify-sigfiles full-sig-files))
+         (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
          (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files)) (set->list (hash-ref classified-sigfiles 'discard))))
          (printf "keeping ~s\n" (hash-ref classified-sigfiles 'kept))
          (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
-         (printf "discard along with sigfile, depended files: ~s\n" discarded-dep-files)]
+         (printf "discard along with sigfile, depended files: ~s\n" discarded-dep-files)
+         (for-each (lambda ([path : Any])
+                     (when (path? path)
+                       (begin
+                         (printf "moving discarded file ~s to ~s" path sec-dump)
+                         ;; (rename-file-or-directory path sec-dump)
+                         )))
+                   (flatten discarded-dep-files))]
         [else
          (printf "dir ~s does not exist\n" backup-dir)]))
 
