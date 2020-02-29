@@ -1,7 +1,7 @@
 #! /usr/bin/env racket
 #lang typed/racket #:with-refinements
 
-;; find out which months can be deleted from backup given the following:
+;; find out which months/generation/age can be deleted from backup given the following:
 ;; - full backups are done monthly, incrementals sub monthly
 ;; - keep a number (4) of most recent full
 ;; - keep the oldest
@@ -44,6 +44,14 @@
 ;; configuration known and processed when reading the configuration
 (define known-config-keys (hash "backup-folder" #t))
 
+(module+ test #| process config line |#
+  (check-false (hash-has-key? (process-config-line "some: value" (hash)) 'some))
+  (check-true (hash-has-key? (process-config-line "backup-folder: value" (hash)) 'backup-folder))
+  (check-equal? (hash-ref (process-config-line "backup-folder: value" (hash)) 'backup-folder)
+                "value")
+  (check-equal? (hash-ref (process-config-line "backup-folder: /some/path/to/backup" (hash)) 'backup-folder)
+                "/some/path/to/backup"))
+
 (: process-config-line : String Configuration -> Configuration)
 ;; process one configuration line and return enriched configuration
 (define (process-config-line line configuration)
@@ -62,7 +70,7 @@
 ;; seed
 (define empty-config-hash (hash))
 
-(module+ test
+(module+ test #| read configuration |#
   (check-equal? (read-configuration '("backup-folder: some/folder" "# some comment" "unknown-prefix: ignored"))
                 (hash 'backup-folder "some/folder")))
 
@@ -73,8 +81,8 @@
          empty-config-hash
          file-lines))
 
-;; setup test data
-(module+ test
+
+(module+ test #| setup test data |#
   (require typed/rackunit)
   (define a (string->path "a"))
   (define b (string->path "b"))
@@ -121,7 +129,7 @@
   (define invalid-path
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signures.20200201T172223Z.sigtar.gpg")))
 
-(module+ test
+(module+ test #| matched-backup-file |#
   (check-equal? (matched-backup-file valid-path-20200201)
                 '("duplicity-full-signatures.20200201T172223Z.sigtar.gpg"))
   (check-false (matched-backup-file invalid-path)))
@@ -131,7 +139,7 @@
 (define (matched-backup-file path)
   (regexp-match full-backup-ls-pattern (path->string path)))
 
-(module+ test
+(module+ test #| backup date |#
   (check gg:date=?
          (backup-date valid-path-20200201)
          (gg:date 2020 02 01))
@@ -143,7 +151,7 @@
 (define (backup-date path)
   (gg:parse-date (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string path) "\\1") "yyyyMMdd'T'HHmmssX"))
 
-(module+ test
+(module+ test #| backup age in months |#
   (check-equal? (backup-age-in-months valid-path-20200201 (gg:date 2020 07 01))
                 5)
   (check-equal? (backup-age-in-months valid-path-20200203 (gg:date 2020 07 01))
@@ -161,7 +169,7 @@
         [else (error "backups cannot date in the future" path)]))
 
 
-(module+ test
+(module+ test #| pair with age |#
   (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203) (gg:date 2020 07 01))
                 `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
 
@@ -170,7 +178,7 @@
 (define (pair-with-age paths [reference-date (gg:now)])
   (map (lambda ([path : Path]) `(,(backup-age-in-months path reference-date) ,path)) paths))
 
-(module+ test
+(module+ test #| sort by age |#
   (check-equal? (sort-by-age `((5 ,valid-path-20200201) (4 ,valid-path-20200203)))
                 `((4 ,valid-path-20200203) (5 ,valid-path-20200201) )))
 
@@ -183,7 +191,7 @@
 (require/typed 'UNTYPED
   [sort-by-age ((Listof AgePathPair) -> (Listof AgePathPair)) ])
 
-(module+ test
+(module+ test #| fill gaps |#
   (check-equal? (--fill-gaps `((2 ,a)(3 ,b)(7 ,c)) 0 '())
                 `((7 ,c) (6 ,b) (5 ,b) (4 ,b) (3 ,b) (2 ,a) (1 ,a) (0 ,a)))
   (check-equal? (--fill-gaps `((0 ,a)(2 ,b)(7 ,c)) 0 '())
@@ -216,7 +224,7 @@
                      (cons `(,n ,(second (second remaining-age-path-pairs))) current-result))]
         [else current-result]))
 
-(module+ test
+(module+ test #| fill gaps |#
   (check-equal? (fill-gaps '())
                 '())
   (check-equal? (fill-gaps `((0 ,valid-path-20200101)))
@@ -239,7 +247,7 @@
 (define (fill-gaps sorted-age-path-pairs)
   (reverse (--fill-gaps sorted-age-path-pairs 0 '())))
 
-(module+ test
+(module+ test #| fib |#
   (check-equal? (fib 0) 0)
   (check-equal? (fib 1) 1)
   (check-equal? (fib 2) 1)
@@ -252,7 +260,7 @@
         [(< n 2) 1]
         [else (+ (fib (- n 1)) (fib (- n 2)))]))
 
-(module+ test
+(module+ test #| fib backup ages to keep |#
   (check-true (set-member? fib-backup-ages-to-keep (fib 10)))
   (check-true (set-member? fib-backup-ages-to-keep 0))
   (check-false (set-member? fib-backup-ages-to-keep (- (fib 10) 1))))
@@ -266,7 +274,7 @@
 (define (keep-backup-since-age-is-kept? backup-ages-to-keep age-backup-pair)
   (set-member? backup-ages-to-keep (first age-backup-pair)))
 
-(module+ test
+(module+ test #| age path pairs -> paths |#
   (check-equal? (age-path-pairs->paths `((0 ,a) (1 ,a) (2 ,b) (3 ,b) (4 ,c)))
                 (set a b c)))
 
@@ -275,7 +283,7 @@
 (define (age-path-pairs->paths age-path-pairs)
   (list->set (map (lambda ([pair : AgePathPair]) (second pair)) age-path-pairs)))
 
-(module+ test
+(module+ test #| next age ge |#
   (check-equal? (next-age-ge 3 (set 1 2 7 9)) 7)
   (check-equal? (next-age-ge 3 (set 1 2 4 9)) 4)
   (check-equal? (next-age-ge 3 (set 1 3 9)) 3)
@@ -308,7 +316,7 @@
   (define filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs)))
   (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs)))
 
-(module+ test
+(module+ test #| keep because it becomes relevant |#
   (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
                 `(,c ,d)))
 
@@ -326,7 +334,7 @@
                    kept-paths)
                fib-distance)]))
 
-(module+ test
+(module+ test #| keep because it becomes relevant |#
   (check-equal? (keep-because-it-becomes-relevant fib-backup-ages-to-keep (list a b c d) `((1 ,a) (5 ,b) (7 ,c) (15 ,d)))
                 (set a c d)))
 
@@ -352,7 +360,7 @@
         (curry keep-by-age-list fib-backup-ages-to-keep)
         (curry keep-because-it-becomes-relevant fib-backup-ages-to-keep)))
 
-(module+ test
+(module+ test #| keep paths |#
   (check-equal? (--kept-paths '() '() (set) '())
                 (set))
   (check-equal? (--kept-paths `(,valid-path-20200101)
@@ -417,7 +425,7 @@
                                  ((first keep-functions) all-paths age-path-pairs))
                       (rest keep-functions))]))
 
-(module+ test
+(module+ test #| keep paths |#
   (check-equal? (kept-paths (list a b c d e f g)
                             `((0 ,a) (1 ,b) (2 ,c) (3 ,d) (4 ,e) (5 ,f) (6 ,g)))
                 (set a b c d f g)) ;; dropped e
@@ -490,7 +498,7 @@
             (regexp-match (regexp (format ".*duplicity-full\\.~a\\..*" date)) (path->string path)))
           full-backup-files))
 
-(module+ test
+(module+ test #| get to datestr of chain |#
   (check-equal? (get-to-datestr-of-chain (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))
                 "20191011T121221Z")
   (check-equal? (get-from-datestr-of-chain (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))
@@ -506,7 +514,7 @@
 (define (get-from-datestr-of-chain manifest-file)
   (regexp-replace #rx".*duplicity-inc\\.(.*)\\.to\\..*\\.manifest\\..*" (path->string manifest-file) "\\1"))
 
-(module+ test
+(module+ test #| get increment based on |#
   (check-equal? (get-increment-based-on
                  (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
@@ -527,7 +535,7 @@
             (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\.~a\\..*" from-date to-date)) (path->string path)))
           full-backup-files))
 
-(module+ test
+(module+ test #| get manifest based on |#
   (check-equal? (get-manifest-based-on
                  "20191011T115918Z"
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
@@ -546,7 +554,7 @@
   (when (not (empty? related-files))
     (first related-files)))
 
-(module+ test
+(module+ test #| get all increment manifests of chain |#
   (check-equal? (--get-all-increment-manifests-of-chain
                  "20191011T115918Z"
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
@@ -567,7 +575,7 @@
           (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest) full-backup-files (cons manifest collected-manifest-files)))
         collected-manifest-files)))
 
-(module+ test
+(module+ test #| get chains related to |#
   (check-equal? (get-chains-related-to
                  (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
