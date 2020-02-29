@@ -113,19 +113,20 @@
   (: valid-path-20200101 Path)
   (define valid-path-20200101
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200101T182223Z.sigtar.gpg"))
-  (: valid-path-20200201 Path)
   (define valid-path-20200201
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200201T172223Z.sigtar.gpg"))
-  (: valid-path-20200203 Path)
   (define valid-path-20200203
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200203T112223Z.sigtar.gpg"))
-  (: valid-path-20200514 Path)
   (define valid-path-20200514
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200514T082223Z.sigtar.gpg"))
-  (: valid-path-20200502 Path)
   (define valid-path-20200502
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200502T092223Z.sigtar.gpg"))
-  (: invalid-path Path)
+  (define valid-path-20200605
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200605T182223Z.sigtar.gpg"))
+  (define valid-path-20200701
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20200701T182223Z.sigtar.gpg"))
+  (define valid-path-20201004
+    (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20201004T182223Z.sigtar.gpg"))
   (define invalid-path
     (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signures.20200201T172223Z.sigtar.gpg")))
 
@@ -470,26 +471,6 @@
 (define (kept-paths all-paths age-path-pairs)
   (--kept-paths all-paths age-path-pairs (set) backup-keep-functions))
 
-;; simple check and print of current kept and discarded backups (no actual actions taken)
-(define (check-backups)
-  (printf "locating configuration\n")
-  (define config     (read-configuration (file->lines (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config"))))
-  (define backup-dir (hash-ref config 'backup-folder))
-  (cond [(directory-exists? backup-dir)
-         (printf "dir ~s exists\n" backup-dir)
-         (define full-backup-files  (directory-list backup-dir))
-         (define full-sig-files     (filter matched-backup-file full-backup-files))
-         (define age-file-pairs     (sort-by-age (pair-with-age full-sig-files)))
-         (define all-kept           (kept-paths full-sig-files age-file-pairs))
-         (define discard            (set-subtract (list->set full-sig-files) all-kept))
-         (for-each (lambda ([arg : AgePathPair])
-                     (printf "age: ~s, path: ~s\n" (first arg) (path->string (second arg))))
-                   age-file-pairs)
-         (printf "keeping ~s\n" all-kept)
-         (printf "discard ~s\n" discard)]
-        [else
-         (printf "dir ~s does not exist\n" backup-dir)]))
-
 (: get-full-related-to : Path String (Listof Path) -> (Listof Path))
 ;; get all files related to the following full-backup
 (define (get-full-related-to sig-file backup-dir full-backup-files)
@@ -596,8 +577,101 @@
   (define all-chain-manifests (--get-all-increment-manifests-of-chain date full-backup-files '()))
   (map (lambda ([manifest : Path]) (get-increment-based-on manifest full-backup-files)) all-chain-manifests))
 
-;; (check-backups)
+(module+ test #| unique-ages-path-pairs |#
+  (check-equal?
+   (--unique-ages-path-pairs (pair-with-age (list valid-path-20200502 ;; age 5, keep is fib # (used for 6, 7 too)
+                                                 valid-path-20200514 ;; age 5, keep (four youngest)
+                                                 valid-path-20200605 ;; age 4
+                                                 valid-path-20200701)  ;; age 4
+                                           (gg:date 2020 11 01))
+                            (hash))
+   (hash 4 valid-path-20200701 5 valid-path-20200514))
+  (check-equal? (--unique-ages-path-pairs '() (hash))
+                (hash)))
 
+(: --unique-ages-path-pairs : (Listof AgePathPair) (Immutable-HashTable Nonnegative-Integer Path) -> (Immutable-HashTable Nonnegative-Integer Path))
+;; keep only one path per generation/age
+(define (--unique-ages-path-pairs rest-age-path-pairs current-result-pairs)
+  (cond [(empty? rest-age-path-pairs)
+         current-result-pairs]
+        [else
+         (define age (first (first rest-age-path-pairs)))
+         (define path (second (first rest-age-path-pairs)))
+         (--unique-ages-path-pairs (cdr rest-age-path-pairs) (hash-set current-result-pairs age path))]))
+
+(module+ test #| unique ages path pairs |#
+  (check-equal?
+     (unique-ages-path-pairs (pair-with-age (list valid-path-20200502 ;; age 5, keep is fib # (used for 6, 7 too)
+                                                 valid-path-20200514 ;; age 5, keep (four youngest)
+                                                 valid-path-20200605 ;; age 4
+                                                 valid-path-20200701)  ;; age 4
+                                           (gg:date 2020 11 01)))
+
+     (list (list 4 valid-path-20200701) (list 5 valid-path-20200514))))
+
+(: unique-ages-path-pairs : (Listof AgePathPair) -> (Listof AgePathPair))
+;; make sure onle one path is kept per generation/month
+(define (unique-ages-path-pairs age-path-pairs)
+  (define uniqified-map (--unique-ages-path-pairs age-path-pairs (hash)))
+  (sort-by-age (map (lambda ([key : Nonnegative-Integer]) (list key (hash-ref uniqified-map key)) ) (hash-keys uniqified-map))))
+
+(module+ test #| classify sigfiles |#
+  (check-equal? (hash-ref (classify-sigfiles (list valid-path-20200101) (gg:date 2020 03 01))
+                          'discard)
+                (set))
+  (check-equal? (backup-age-in-months valid-path-20200101 (gg:date 2020 11 01))
+                10 )
+  (check-equal? (backup-age-in-months valid-path-20200201 (gg:date 2020 11 01))
+                9)
+  (check-equal? (backup-age-in-months valid-path-20200203 (gg:date 2020 11 01))
+                8)
+  (check-equal? (backup-age-in-months valid-path-20200502 (gg:date 2020 11 01))
+                5)
+  (check-equal? (hash-ref (classify-sigfiles (list valid-path-20200101 ;; age 10, keep (oldest)
+                                                   valid-path-20200201 ;; age 9, discard!
+                                                   valid-path-20200203 ;; age 8, keep is fib #
+                                                   valid-path-20200502 ;; sorted out (age 5)
+                                                   valid-path-20200514 ;; age 5 (and 6, 7)  keep (four youngest)
+                                                   valid-path-20200605
+                                                   valid-path-20200701
+                                                   valid-path-20201004)
+                                             (gg:date 2020 11 01))
+                          'discard)
+                (set valid-path-20200201
+                     valid-path-20200502)))
+
+(: path>? : Path Path -> Boolean)
+;; compare paths as strings
+(define (path>? [p1 : Path] [p2 : Path])
+  (string>? (path->string p1) (path->string p2)))
+
+(: classify-sigfiles (((Listof Path)) (Date) . ->* . (Immutable-HashTable Symbol (Setof Path))))
+;; classify sig files of full backups into 'keep or 'discard
+(define (classify-sigfiles sigfiles [reference-date (gg:now)])
+  (define sorted-sigfiles (sort sigfiles path>?))
+  (define age-file-pairs  (sort-by-age (unique-ages-path-pairs (pair-with-age sigfiles reference-date))))
+  (define keep            (kept-paths sorted-sigfiles age-file-pairs))
+  (define discard         (set-subtract (list->set sigfiles) keep))
+  (hash 'keep keep 'discard discard))
+
+;; simple check and print of current kept and discarded backups (no actual actions taken)
+(define (check-backups)
+  (printf "locating configuration\n")
+  (define config     (read-configuration (file->lines (string-append (path->string (find-system-path 'home-dir)) ".duplicity/config"))))
+  (define backup-dir (hash-ref config 'backup-folder))
+  (cond [(directory-exists? backup-dir)
+         (printf "dir ~s exists\n" backup-dir)
+         (define full-backup-files   (directory-list backup-dir))
+         (define full-sig-files      (filter matched-backup-file full-backup-files))
+         (define classified-sigfiles (classify-sigfiles full-sig-files))
+         (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files)) (set->list (hash-ref classified-sigfiles 'discard))))
+         (printf "keeping ~s\n" (hash-ref classified-sigfiles 'kept))
+         (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
+         (printf "discard along with sigfile, depended files: ~s\n" discarded-dep-files)]
+        [else
+         (printf "dir ~s does not exist\n" backup-dir)]))
+
+;; (check-backups)
 
 ;; (printf "Given arguments: ~s\n"
 ;;         (current-command-line-arguments))
