@@ -175,9 +175,9 @@
                 `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
 
 (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
-;; pair age (or generation) with path
+;; pair path with age (or generation)
 (define (pair-with-age paths [reference-date (gg:now)])
-  (map (lambda ([path : Path]) `(,(backup-age-in-months path reference-date) ,path)) paths))
+  (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path)) paths))
 
 (module+ test #| sort by age |#
   (check-equal? (sort-by-age `((5 ,valid-path-20200201) (4 ,valid-path-20200203)))
@@ -679,7 +679,7 @@
         [else
          (printf "dir ~s does not exist\n" backup-dir)]))
 
-;; (check-backups)
+(check-backups)
 
 ;; (printf "Given arguments: ~s\n"
 ;;         (current-command-line-arguments))
