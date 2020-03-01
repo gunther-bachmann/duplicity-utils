@@ -679,7 +679,7 @@
         [else
          (printf "dir ~s does not exist\n" backup-dir)]))
 
-(check-backups)
+;; (check-backups)
 
 ;; (printf "Given arguments: ~s\n"
 ;;         (current-command-line-arguments))

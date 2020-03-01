@@ -1,22 +1,22 @@
-#+title: Backup
+#+title: backup integration
 #+property: spellcheck no
-* Backup integration
+* _Backup integration_
 ** requirements
       - save current state of file data, keep generations
-      - ability to restore files, older versions (slow is ok)
+      - ability to restore files, different versions (slow is ok)
       - run unattended in sane intervals, be non intrusive
       - make efficient use of storage
-      - store remote -> use encryption
+      - store -> use encryption
       - be accessible from other systems -> use common formats
 ** solution: backup
     - backup generations, common formats, encryption, space efficient
       - duplicity http://duplicity.nongnu.org/ (active development)
         - full backups every month
         - incrementals in between
-        - target folder (could be s3, ftp ...)
+        - target mounted fs (could be s3, ftp ...)
         - encryption with gpg
-        - used fileformat is encrypted tar
-        - uses librsync (rdiff + rdiffdir) to produce signatures and deltas on files and folders
+        - fileformat is encrypted tar
+        - librsync (rdiff + rdiffdir) to produce signatures and deltas on files and folders
       - bash script
         - read config
         - wrap calls to duplicity
@@ -36,23 +36,23 @@
 ** solution: non intrusive - systemd service - nixos
       - nixos
         #+begin_src nix
-            systemd.user.services.backup-drive = {
-              path = with pkgs; [ gzip gnutar bash duplicity gnupg cpulimit utillinux coreutils dateutils ];
-              unitConfig = {
-                ConditionPathExists="/run/media/pe/684110cc-325f-4307-bce0-843930ff7de6";
-              };
-              serviceConfig = {
-                ExecStart = "${pkgs.bash}/bin/bash -c '/home/pe/bin/duplicity-backup.sh backup -v -y'";
-              };
+          systemd.user.services.backup-drive = {
+            path = with pkgs; [ gzip gnutar bash duplicity gnupg cpulimit utillinux coreutils dateutils ];
+            unitConfig = {
+              ConditionPathExists="/run/media/pe/684110cc-325f-4307-bce0-843930ff7de6";
             };
-           systemd.user.timers.backup-drive = {
-              wantedBy = [ "run-media-pe-684110cc\\x2d325f\\x2d4307\\x2dbce0\\x2d843930ff7de6.mount" ];
-              bindsTo = [ "run-media-pe-684110cc\\x2d325f\\x2d4307\\x2dbce0\\x2d843930ff7de6.mount" ];
-              timerConfig = {
-                OnActiveSec = 300; # after 5 minutes the drive was plugged in
-                OnCalendar = "*-*-* 10..22/3:00:00";
-              };
+            serviceConfig = {
+              ExecStart = "${pkgs.bash}/bin/bash -c '/home/pe/bin/duplicity-backup.sh backup -v -y'";
             };
+          };
+          systemd.user.timers.backup-drive = {
+            wantedBy = [ "run-media-pe-684110cc\\x2d325f\\x2d4307\\x2dbce0\\x2d843930ff7de6.mount" ];
+            bindsTo = [ "run-media-pe-684110cc\\x2d325f\\x2d4307\\x2dbce0\\x2d843930ff7de6.mount" ];
+            timerConfig = {
+              OnActiveSec = 300; # after 5 minutes the drive was plugged in
+              OnCalendar = "*-*-* 10..22/3:00:00";
+            };
+          };
         #+end_src
 ** solution: non intrusive - systemd service - unit files
       - regular systemd files (service)
@@ -63,7 +63,7 @@
           Environment="LOCALE_ARCHIVE=/nix/store/nl67flma20ixa0x5jms4wk0yfbx4c9wb-glibc-locales-2.27/lib/locale/locale-archive"
           Environment="PATH=/nix/store/afyqk8219zfv5and3pqahzvn6bpmx3dq-gzip-1.10/bin:/nix/store/aawf0q16ql39w2gwv52qyjfzgbg5f22r-gnutar-1.32/bin:/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin:/nix/store/vlsm5hn4d7mrdnx2735ly5a21gyc53z0-duplicity-0.7.19/bin:/nix/store/y7pp6lw95l0l0cpqsqls5lbs6ax43y2m-gnupg-2.2.17/bin:/nix/store/cyc2xjjwy2z7dzc83b8sy1sr91ih70wf-cpulimit-2.6/bin:/nix/store/879vn477qqp4vs1f9m2k1z32mx0ba4av-util-linux-2.33.2-bin/bin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/bin:/nix/store/3x4g6sfj6rd6x95fj4xzz7gkw1p9prcn-dateutils-0.4.6/bin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/bin:/nix/store/0zdsw4qdrwi41mfdwqpxknsvk9fz3gkb-findutils-4.7.0/bin:/nix/store/71y5ddyz8vmsw9wgi3gzifcls53r60i9-gnugrep-3.3/bin:/nix/store/g2h4491kab7l06v9rf1lnyjvzdwy5ak0-gnused-4.7/bin:/nix/store/sh3a8j39frr2csmhf4yvr9frlyj0dnc2-systemd-243.3/bin:/nix/store/afyqk8219zfv5and3pqahzvn6bpmx3dq-gzip-1.10/sbin:/nix/store/aawf0q16ql39w2gwv52qyjfzgbg5f22r-gnutar-1.32/sbin:/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/sbin:/nix/store/vlsm5hn4d7mrdnx2735ly5a21gyc53z0-duplicity-0.7.19/sbin:/nix/store/y7pp6lw95l0l0cpqsqls5lbs6ax43y2m-gnupg-2.2.17/sbin:/nix/store/cyc2xjjwy2z7dzc83b8sy1sr91ih70wf-cpulimit-2.6/sbin:/nix/store/879vn477qqp4vs1f9m2k1z32mx0ba4av-util-linux-2.33.2-bin/sbin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/sbin:/nix/store/3x4g6sfj6rd6x95fj4xzz7gkw1p9prcn-dateutils-0.4.6/sbin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/sbin:/nix/store/0zdsw4qdrwi41mfdwqpxknsvk9fz3gkb-findutils-4.7.0/sbin:/nix/store/71y5ddyz8vmsw9wgi3gzifcls53r60i9-gnugrep-3.3/sbin:/nix/store/g2h4491kab7l06v9rf1lnyjvzdwy5ak0-gnused-4.7/sbin:/nix/store/sh3a8j39frr2csmhf4yvr9frlyj0dnc2-systemd-243.3/sbin"
           Environment="TZDIR=/nix/store/yfd0qkf8m908j523xyvwmwrll95ywkdi-tzdata-2019b/share/zoneinfo"
-         ExecStart=/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin/bash -c '/home/pe/bin/duplicity-backup.sh backup -v -y'
+          ExecStart=/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin/bash -c '/home/pe/bin/duplicity-backup.sh backup -v -y'
         #+end_src
         #+begin_src bash
         [Unit]
@@ -73,17 +73,17 @@
           OnCalendar=*-*-* 10..22/3:00:00
         #+end_src
 ** solution: non intrusive - reduce system load
-      - cpulimit (limit encryption load)
+      - cpulimit (limit load during encryption)
       - ionice (limit load on fs)
       - nice (limit process load)
 ** solution: drop outdated - fib
     - how: fibonacci comes to mind
       - 0 1 1 2 3 5 8 13 21 34 55 144 233 377 ...
-      - rules when to keep
-        - backup is one of the four youngest ones
-        - backup is the oldest
-        - backup month age is a fib number
-        - backup month becomes a fib number
+      - rules when to keep backup
+        - is one of the four youngest ones
+        - is the oldest
+        - month age / generation is a fib number
+        - or becomes a fib number
           - e.g. (A0 B1 C3 D5 [E6] F8 [G10] H11) ;; E and G would be dropped, but ...
           - (A0 B1 C3 D5 [E6] F8  [G10] H11)
             (A1 B2 C4 D6 [E7] F9  [G11] H12)
@@ -93,23 +93,24 @@
           - (A10 B11 C13 D14 E16 [F18] [G20] H21)
 ** solution: drop outdated - racket - lisp
     - processing lists (well, it's a lisp)
-      ([[file:duplicity-get-fulls-to-delete.rkt::173]])
+      ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
       #+begin_src racket
         ;; pair path with age (or generation)
         (define (pair-with-age paths [reference-date (gg:now)])
           (map (lambda (path) (list (backup-age-in-months path reference-date) path)) paths))
       #+end_src
 ** solution: drop outdated - racket - typed
-    - typed ([[file:duplicity-get-fulls-to-delete.rkt::173]])
+    - typed ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
       #+begin_src racket
+        (define-type AgePathPair (List Nonnegative-Integer Path))
+
         (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
         ;; pair path with age (or generation)
         (define (pair-with-age paths [reference-date (gg:now)])
           (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path)) paths))
-       (define-type AgePathPair (List Nonnegative-Integer Path))
       #+end_src
 ** solution: drop outdated - racket - dependently typed
-    - dependently typed ([[file:duplicity-get-fulls-to-delete.rkt::251]])
+    - dependently typed ([[file:duplicity-get-fulls-to-delete.rkt::251][link]])
       #+begin_src racket
         (: fib : Nonnegative-Integer -> Nonnegative-Integer)
         (define (fib n)
@@ -118,25 +119,31 @@
                 [else (+ (fib (- n 1)) (fib (- n 2)))]))
       #+end_src
 ** solution: drop outdated - racket - tests
-    - easy testable ([[file:duplicity-get-fulls-to-delete.rkt::173]])
+    - easy testable ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
       #+begin_src racket
         (module+ test #| pair with age |#
-          (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203) (gg:date 2020 07 01))
-                        `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
+          (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203)
+                                       (gg:date 2020 07 01))
+                        `((5 ,valid-path-20200201)
+                          (4 ,valid-path-20200203))))
       #+end_src
 ** solution: drop outdated - racket - scriptable
-    - usable as script ([[file:duplicity-get-fulls-to-delete.rkt::1]])
+    - usable as script ([[file:duplicity-get-fulls-to-delete.rkt::1][link]])
       #+begin_src racket
         #! /usr/bin/env racket
         #lang typed/racket #:with-refinements
 
         (print "hello")
       #+end_src
-** solution: drop outdated - racket - scriptable
+** solution: drop outdated - racket - executable
     - standalone executable
       #+begin_src bash
         raco exe --gui duplicity-get-fulls-to-delete.rkt
       #+end_src
+** postscript
+#+BEGIN_COMMENT
 ;; Local Variables:
 ;; eval: (org-tree-slide-mode)
+;; eval: (org-toggle-inline-images)
 ;; End:
+#+END_COMMENT
