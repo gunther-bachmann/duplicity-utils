@@ -9,7 +9,7 @@
       - store -> use encryption
       - be accessible from other systems -> use common formats
 ** solution
-*** backup
+*** backup  -  something potentially useful
      - backup generations, common formats, encryption, space efficient
        - duplicity http://duplicity.nongnu.org/ (active development)
          - full backups every month
@@ -21,8 +21,11 @@
        - bash script
          - read config
          - wrap calls to duplicity
-*** non intrusive
+*** non intrusive  -  else I won't use it
 **** polybar
+
+      *nice desktop integration (and yes, emacs has a desktop too)*
+
       - polybar configuration
         [[file:backup.polybar.ok.png]]
         #+begin_src bash
@@ -36,7 +39,10 @@
           click-right = $EDITOR --eval '(let (($buf (generate-new-buffer "collection status")))(with-current-buffer $buf (switch-to-buffer $buf)(setq buffer-offer-save nil) (text-mode) (shell-command "duplicity-backup.sh collection-status" (current-buffer)) (end-of-buffer)))'
         #+end_src
 **** systemd service - nixos
-        - nixos
+
+      *nixos - well even emacs needs /some/ libraries to function*
+
+      - configuration
           #+begin_src nix
             systemd.user.services.backup-drive = {
               path = with pkgs; [ gzip gnutar bash duplicity gnupg cpulimit utillinux coreutils dateutils ];
@@ -57,7 +63,7 @@
             };
           #+end_src
 **** systemd service - unit files
-        - regular systemd files (service)
+      - regular systemd files (service)
           #+begin_src bash
           [Unit]
             ConditionPathExists=/run/media/pe/684110cc-325f-4307-bce0-843930ff7de6
@@ -75,12 +81,18 @@
             OnCalendar=*-*-* 10..22/3:00:00
           #+end_src
 **** reduce system load
-        - cpulimit (limit load during encryption)
-        - ionice (limit load on fs)
-        - nice (limit process load)
-*** drop outdated
-**** fib
-      - how: fibonacci comes to mind
+
+      *did you hear your cpu fan recently?*
+
+      - cpulimit (limit load during encryption)
+      - ionice (limit load on fs)
+      - nice (limit process load)
+*** drop outdated  -  even terrabytes are filled someday
+**** fibonacci
+
+      *dropping outdated, of course use fibonacci numbers*
+
+      - which generations to keep?
         - 0 1 1 2 3 5 8 13 21 34 55 144 233 377 ...
         - rules when to keep backup
           - is one of the four youngest ones
@@ -95,8 +107,14 @@
               (A2 B3 C5 D6 E8 [F10] [G12] H13) ;; drop F and G
             - (A10 B11 C13 D14 E16 [F18] [G20] H21)
 **** racket
+
+      *yeah, could have used some other language but that wouldn't have been any fun!*
+
 ***** lisp
-       - processing lists (well, it's a lisp)
+
+      *everybody needs his dose of parenthesis, even you*
+
+      - processing lists (well, it's a lisp)
          ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
          #+begin_src racket
            ;; pair path with age (or generation)
@@ -104,7 +122,10 @@
              (map (lambda (path) (list (backup-age-in-months path reference-date) path)) paths))
          #+end_src
 ***** typed
-       - typed ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
+
+      *static vs. dynamic, want to start a flame war?*
+
+      - source ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
          #+begin_src racket
            (define-type AgePathPair (List Nonnegative-Integer Path))
 
@@ -114,7 +135,10 @@
              (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path)) paths))
          #+end_src
 ***** dependently typed
-       - dependently typed ([[file:duplicity-get-fulls-to-delete.rkt::251][link]])
+
+      *typing outside of haskell? that's crazy!*
+
+      - source ([[file:duplicity-get-fulls-to-delete.rkt::251][link]])
          #+begin_src racket
            (: fib : Nonnegative-Integer -> Nonnegative-Integer)
            (define (fib n)
@@ -123,7 +147,10 @@
                    [else (+ (fib (- n 1)) (fib (- n 2)))]))
          #+end_src
 ***** tests
-       - easy testable ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
+
+      *hey, I thought it is typed!*
+
+      - easy testable? no side effects! immutability! ([[file:duplicity-get-fulls-to-delete.rkt::173][link]])
          #+begin_src racket
            (module+ test #| pair with age |#
              (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203)
@@ -132,20 +159,22 @@
                              (4 ,valid-path-20200203))))
          #+end_src
 ***** coverage
-       - execute test coverage
+
+      *even though it is typed?*
+
+      - execute test coverage
          #+begin_export bash
          raco cover duplicity-get-fulls-to-delete.rkt
          #+end_export
        - view coverage on
-         #+begin_src emacs-lisp
+         #+begin_src emacs-lisp :results silent
            (browse-url "file:///home/pe/repo/+1/duplicity-utils/coverage/index.html")
          #+end_src
-
-         #+RESULTS:
-         : #<process firefox file:///home/pe/repo/+1/duplicity-utils/coverage/index.html>
-
 ***** scriptable
-       - usable as script ([[file:duplicity-get-fulls-to-delete.rkt::1][link]])
+
+      *no need for bash, you can use a /language/ for scripting*
+
+      - source ([[file:duplicity-get-fulls-to-delete.rkt::1][link]])
          #+begin_src racket
            #! /usr/bin/env racket
            #lang typed/racket #:with-refinements
@@ -153,7 +182,10 @@
            (print "hello")
          #+end_src
 ***** executable
-       - standalone executable
+
+      *producing fat executables is no exclusive privilege of c, c++, go!*
+
+       - standalone executable (23mb)
          #+begin_src bash
            raco exe --gui duplicity-get-fulls-to-delete.rkt
          #+end_src
