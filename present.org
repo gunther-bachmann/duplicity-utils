@@ -201,7 +201,7 @@
    - [[https://github.com/polybar/polybar][polybar]]
    - [[https://nixos.org/][nixos]]
    - [[https://limitcpu.sourceforge.net/][cpulimit]], [[https://www.kernel.org/pub/linux/utils/util-linux/][ionice]], [[https://www.gnu.org/software/coreutils/][nice]]
-   - [[https://www.gnu.org/software/emacs/][emacs]]
+   - [[https://www.gnu.org/software/emacs/][emacs]] ([[https://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]], [[https://github.com/takaxp/org-tree-slide][org-tree-slide]])
    - [[https://racket-lang.org/][racket]]
 #+BEGIN_COMMENT
 ;; Local Variables:
