@@ -127,6 +127,19 @@
                         `((5 ,valid-path-20200201)
                           (4 ,valid-path-20200203))))
       #+end_src
+** solution: drop outdated - racket - coverage
+    - execute test coverage
+      #+begin_export bash
+      raco cover duplicity-get-fulls-to-delete.rkt
+      #+end_export
+    - view coverage on
+      #+begin_src emacs-lisp
+        (browse-url "file:///home/pe/repo/+1/duplicity-utils/coverage/index.html")
+      #+end_src
+
+      #+RESULTS:
+      : #<process firefox file:///home/pe/repo/+1/duplicity-utils/coverage/index.html>
+
 ** solution: drop outdated - racket - scriptable
     - usable as script ([[file:duplicity-get-fulls-to-delete.rkt::1][link]])
       #+begin_src racket
