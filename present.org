@@ -203,10 +203,10 @@
    - [[https://limitcpu.sourceforge.net/][cpulimit]], [[https://www.kernel.org/pub/linux/utils/util-linux/][ionice]], [[https://www.gnu.org/software/coreutils/][nice]]
    - [[https://www.gnu.org/software/emacs/][emacs]] ([[https://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]], [[https://github.com/takaxp/org-tree-slide][org-tree-slide]])
    - [[https://racket-lang.org/][racket]]
-#+BEGIN_COMMENT
-;; Local Variables:
-;; eval: (org-tree-slide-mode)
-;; eval: (org-toggle-inline-images)
-;; eval: (org-tree-slide-content)
-;; End:
-#+END_COMMENT
+# Local Variables:
+# org-tree-slide-header: nil
+# org-tree-slide-heading-emphasis: t
+# eval: (org-tree-slide-mode)
+# eval: (org-toggle-inline-images)
+# eval: (org-tree-slide-content)
+# End:
