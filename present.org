@@ -12,13 +12,14 @@
 *** backup  -  something potentially useful
      - backup generations, common formats, encryption, space efficient
        - duplicity http://duplicity.nongnu.org/ (active development)
-         - full backups every month
-         - incrementals in between
-         - target mounted fs (could be s3, ftp ...)
-         - encryption with gpg
+         - configured to ...
+           - full backups every month
+           - incrementals in between
+           - target mounted fs (could be s3, ftp ...)
+           - encryption with gpg
          - fileformat is encrypted tar
          - librsync (rdiff + rdiffdir) to produce signatures and deltas on files and folders
-       - bash script
+       - additional bash script
          - read config
          - wrap calls to duplicity
 *** non intrusive  -  else I won't use it
@@ -99,7 +100,7 @@
           - is one of the four youngest ones
           - is the oldest
           - month age / generation is a fib number
-          - or becomes a fib number
+            or becomes a fib number
             - e.g. (A0 B1 C3 D5 [E6] F8 [G10] H11) ;; E and G would be dropped, but ...
             - adding generations without additional backups ...
             - (A0 B1 C3 D5 [E6] F8  [G10] H11)
@@ -208,7 +209,12 @@
 # Local Variables:
 # org-tree-slide-header: nil
 # org-tree-slide-heading-emphasis: t
+# org-tree-slide-modeline-display: 'lighter
 # eval: (org-tree-slide-mode)
 # eval: (org-toggle-inline-images)
+# eval: (goto-char (point-min))
 # eval: (org-tree-slide-content)
+# eval: (org-tree-slide-content)
+# org-show-notification-handler: #'(lambda (msg) (message msg))
+# gb/slides-started: nil
 # End:
