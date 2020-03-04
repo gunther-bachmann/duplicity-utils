@@ -177,7 +177,8 @@
 (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
 ;; pair path with age (or generation)
 (define (pair-with-age paths [reference-date (gg:now)])
-  (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path)) paths))
+  (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path))
+       paths))
 
 (module+ test #| sort by age |#
   (check-equal? (sort-by-age `((5 ,valid-path-20200201) (4 ,valid-path-20200203)))
@@ -282,7 +283,8 @@
 (: age-path-pairs->paths : (Listof AgePathPair) -> (Setof Path))
 ;; extract all paths from list of age path pairs
 (define (age-path-pairs->paths age-path-pairs)
-  (list->set (map (lambda ([pair : AgePathPair]) (second pair)) age-path-pairs)))
+  (list->set (map (lambda ([pair : AgePathPair]) (second pair))
+                 age-path-pairs)))
 
 (module+ test #| next age ge |#
   (check-equal? (next-age-ge 3 (set 1 2 7 9)) 7)
@@ -530,7 +532,8 @@
 ;; get manifest of incremental backup from date (string)
 (define (get-manifest-based-on from-date-str full-backup-files)
   (define related-files (filter (lambda ([path : Path])
-                                  (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str)) (path->string path)))
+                                  (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str))
+                                                (path->string path)))
                                 full-backup-files))
   (when (not (empty? related-files))
     (first related-files)))
@@ -553,7 +556,9 @@
   (let ([manifest (get-manifest-based-on from-date full-backup-files)])
     (if (path? manifest)
         (begin
-          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest) full-backup-files (cons manifest collected-manifest-files)))
+          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest)
+                                                 full-backup-files
+                                                 (cons manifest collected-manifest-files)))
         collected-manifest-files)))
 
 (module+ test #| get chains related to |#
@@ -575,7 +580,8 @@
 (define (get-chains-related-to sig-file full-backup-files)
   (define date                (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1"))
   (define all-chain-manifests (--get-all-increment-manifests-of-chain date full-backup-files '()))
-  (map (lambda ([manifest : Path]) (get-increment-based-on manifest full-backup-files)) all-chain-manifests))
+  (map (lambda ([manifest : Path]) (get-increment-based-on manifest full-backup-files))
+       all-chain-manifests))
 
 (module+ test #| unique-ages-path-pairs |#
   (check-equal?
@@ -613,7 +619,8 @@
 ;; make sure onle one path is kept per generation/month
 (define (unique-ages-path-pairs age-path-pairs)
   (define uniqified-map (--unique-ages-path-pairs age-path-pairs (hash)))
-  (sort-by-age (map (lambda ([key : Nonnegative-Integer]) (list key (hash-ref uniqified-map key)) ) (hash-keys uniqified-map))))
+  (sort-by-age (map (lambda ([key : Nonnegative-Integer]) (list key (hash-ref uniqified-map key)))
+                    (hash-keys uniqified-map))))
 
 (module+ test #| classify sigfiles |#
   (check-equal? (hash-ref (classify-sigfiles (list valid-path-20200101) (gg:date 2020 03 01))
@@ -665,7 +672,8 @@
          (define full-sig-files      (filter matched-backup-file full-backup-files))
          (define classified-sigfiles (classify-sigfiles full-sig-files))
          (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
-         (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files)) (set->list (hash-ref classified-sigfiles 'discard))))
+         (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files))
+                                          (set->list (hash-ref classified-sigfiles 'discard))))
          (printf "keeping ~s\n" (hash-ref classified-sigfiles 'kept))
          (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
          (printf "discard along with sigfile, depended files: ~s\n" discarded-dep-files)

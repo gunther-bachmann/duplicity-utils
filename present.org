@@ -122,7 +122,8 @@
          #+begin_src racket
            ;; pair path with age (or generation)
            (define (pair-with-age paths [reference-date (gg:now)])
-             (map (lambda (path) (list (backup-age-in-months path reference-date) path)) paths))
+             (map (lambda (path) (list (backup-age-in-months path reference-date) path))
+                  paths))
          #+end_src
 ***** typed
 
@@ -135,7 +136,8 @@
            (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
            ;; pair path with age (or generation)
            (define (pair-with-age paths [reference-date (gg:now)])
-             (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path)) paths))
+             (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path))
+                  paths))
          #+end_src
 ***** dependently typed
 
@@ -153,7 +155,8 @@
            (define (fib n)
              (cond [(= n 0) 0]
                    [(< n 2) 1]
-                   [else (+ (fib (- n 1)) (fib (- n 2)))]))
+                   [else (+ (fib (- n 1))
+                            (fib (- n 2)))]))
          #+end_src
 ***** tests
 
@@ -172,19 +175,20 @@
       *even though it is typed?*
 
       - execute test coverage
-         #+begin_export bash
-         raco cover duplicity-get-fulls-to-delete.rkt
-         #+end_export
-       - view coverage on
-         #+begin_src emacs-lisp :results silent
-           (browse-url (s-concat "file:///home/" (getenv "USER") "/repo/+1/duplicity-utils/coverage/index.html"))
+         #+begin_src bash :results silent
+           raco cover duplicity-get-fulls-to-delete.rkt
          #+end_src
+
+      - view coverage on
+          #+begin_src emacs-lisp :results silent
+            (browse-url (s-concat "file:///home/" (getenv "USER") "/repo/+1/duplicity-utils/coverage/index.html"))
+          #+end_src
 ***** scriptable
 
       *no need for bash, you can use a /language/ for scripting*
 
       - source ([[file:duplicity-get-fulls-to-delete.rkt::1][link]])
-         #+begin_src racket
+         #+begin_src racket :results verbatim
            #! /usr/bin/env racket
            #lang typed/racket #:with-refinements
 
@@ -215,6 +219,7 @@
 # eval: (goto-char (point-min))
 # eval: (org-tree-slide-content)
 # eval: (org-tree-slide-content)
-# org-show-notification-handler: #'(lambda (msg) (message msg))
+# eval: (setq org-show-notification-handler #'(lambda (msg) (message msg)))
+# gb/org-tree-slide-presentation-length: 30
 # gb/slides-started: nil
 # End:
