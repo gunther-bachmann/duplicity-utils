@@ -256,7 +256,7 @@
 (: fib : Nonnegative-Integer -> Nonnegative-Integer)
 (define (fib n)
   (cond [(= n 0) 0]
-        [(< n 2) 1]
+        [(<= n 2) 1]
         [else (+ (fib (- n 1)) (fib (- n 2)))]))
 
 (module+ test #| fib backup ages to keep |#

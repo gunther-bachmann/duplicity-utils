@@ -27,9 +27,10 @@
 
       *nice desktop integration (and yes, emacs has a desktop too)*
 
-      - polybar configuration
+      - polybar appearance
         [[file:backup.polybar.ok.png]]
         [[file:polybar.complete.png]]
+      - polybar configuration
         #+begin_src bash
           [module/backup]
           type = custom/script
@@ -94,19 +95,24 @@
 
       *dropping outdated, of course use fibonacci numbers*
 
-      - which generations to keep?
-        - 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 ...
+      The Fibonacci numbers are the sequence of numbers
+        $\{F_n\}_{n=1}^\infty$
+      defined by the linear recurrence equation
+        $$F_n = F_{n-1} + F_{n-2}$$
+      with $F_1 = F_2 = 1$, and conventionally defining $F_0 = 0$.
+
+      - /which generations to keep?/
+      - 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 ...
         - rules when to keep backup
           - is one of the four youngest ones
           - is the oldest
-          - month age / generation is a fib number
-            or becomes a fib number
+          - month age / generation is a fib number or becomes a fib number
             - e.g. (A0 B1 C3 D5 [E6] F8 [G10] H11) ;; E and G would be dropped, but ...
             - adding generations without additional backups ...
             - (A0 B1 C3 D5 [E6] F8  [G10] H11)
               (A1 B2 C4 D6 [E7] F9  [G11] H12)
               (A2 B3 C5 D7 [E8] F10 [G12] H13) ;; H now @ fib# 13
-              BUT WANTED IS
+              *BUT WANTED IS*
               (A2 B3 C5 D6 E8 [F10] [G12] H13) ;; drop F and G
             - (A10 B11 C13 D14 E16 [F18] [G20] H21) ;; F and G are still dropped @ fib# 21
 **** racket
@@ -134,7 +140,7 @@
         - all following symbols are parameters to that function
         - in racket (), [] and {} are semantically equivalent
         - racket is not lazy, it is strict
-        - it'ss a scheme thus a lisp-1 (one namespace for functions and variables)
+        - it's a scheme thus a lisp-1 (one namespace for functions and variables)
 ***** typed
 
       *static vs. dynamic, want to start a flame war?*
@@ -171,7 +177,7 @@
            (: fib : Nonnegative-Integer -> Nonnegative-Integer)
            (define (fib n)
              (cond [(= n 0) 0]
-                   [(< n 2) 1]
+                   [(<= n 2) 1]
                    [else (+ (fib (- n 1))
                             (fib (- n 2)))]))
          #+end_src
@@ -227,6 +233,7 @@
    - [[https://limitcpu.sourceforge.net/][cpulimit]], [[https://www.kernel.org/pub/linux/utils/util-linux/][ionice]], [[https://www.gnu.org/software/coreutils/][nice]]
    - [[https://www.gnu.org/software/emacs/][emacs]] ([[https://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]], [[https://github.com/takaxp/org-tree-slide][org-tree-slide]])
    - [[https://racket-lang.org/][racket]]
+** pps
 # Local Variables:
 # org-tree-slide-header: nil
 # org-tree-slide-heading-emphasis: t
@@ -235,9 +242,11 @@
 # eval: (org-toggle-inline-images)
 # eval: (goto-char (point-min))
 # eval: (org-tree-slide-content)
-# eval: (org-tree-slide-content)
 # eval: (setq org-show-notification-handler #'(lambda (msg) (message msg)))
 # eval: (read-only-mode +1)
 # gb/org-tree-slide-presentation-length: 30
 # gb/slides-started: nil
+# eval: (setq org-format-latex-options (plist-put org-format-latex-options :scale 2.6))
+# eval: (progn (setq current-prefix-arg '(16))(call-interactively 'org-latex-preview))
+# eval: (org-tree-slide-content)
 # End:
