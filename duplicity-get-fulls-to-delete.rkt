@@ -8,6 +8,8 @@
 ;; - keep all with a months age matching a fibonacci number
 ;; - keep those that will (in time) have a months age matching a fibonacci number,
 ;;   when the oldest backup matches a fibonacci number
+;; - a backup is associated with a generation/age if there is no backup older than this one
+;;   that is less or equal to that number
 
 ;; automatic installation of racket packages is problematic:
 ;; problem is that no racket packages can be installed into the racket-minimal installation used by shell-nix
@@ -36,13 +38,11 @@
 ;; configuration fetched from file
 (define-type Configuration (Immutable-HashTable Symbol String))
 
-(: full-backup-ls-pattern Regexp)
 ;; matches full backups by one signature file
-(define full-backup-ls-pattern #rx"duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
+(define full-backup-ls-pattern : Regexp #rx"duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
 
-(: known-config-keys (HashTable String Boolean))
 ;; configuration known and processed when reading the configuration
-(define known-config-keys (hash "backup-folder" #t))
+(define known-config-keys : (HashTable String Boolean) (hash "backup-folder" #t))
 
 (module+ test #| process config line |#
   (check-false (hash-has-key? (process-config-line "some: value" (hash)) 'some))
@@ -57,7 +57,7 @@
 (define (process-config-line line configuration)
   (define matched (regexp-match #rx"^([^:]*): (.*)" line))
   (if matched
-      (let ([key (list-ref (cdr matched) 0)] ;; regexp could return this to be #f
+      (let ([key   (list-ref (cdr matched) 0)] ;; regexp could return this to be #f
             [value (list-ref (cdr matched) 1)]) ;; same ...
         (if (and (string? key) ;; to ensure that resulting type is correct
                  (string? value) ;; same ...
@@ -66,9 +66,8 @@
             configuration))
       configuration))
 
-(: empty-config-hash Configuration)
 ;; seed
-(define empty-config-hash (hash))
+(define empty-config-hash : Configuration (hash))
 
 (module+ test #| read configuration |#
   (check-equal? (read-configuration '("backup-folder: some/folder" "# some comment" "unknown-prefix: ignored"))
@@ -80,7 +79,6 @@
   (foldl (lambda ([arg : String] [acc : Configuration]) (process-config-line arg acc))
          empty-config-hash
          file-lines))
-
 
 (module+ test #| setup test data |#
   (require typed/rackunit)
@@ -169,7 +167,6 @@
   (cond [(>= result 0) result]
         [else (error "backups cannot date in the future" path)]))
 
-
 (module+ test #| pair with age |#
   (check-equal? (pair-with-age (list valid-path-20200201 valid-path-20200203) (gg:date 2020 07 01))
                 `((5 ,valid-path-20200201) (4 ,valid-path-20200203))))
@@ -187,7 +184,7 @@
 ;; module with untyped definitions that would not typecheck
 (module UNTYPED racket/base
   (define (sort-by-age age-path-pairs)
-    (sort age-path-pairs < #:key (lambda (pair) (car pair)))) ;; put into untyped region since type checker cannot work with polymorphic key-word parameter (racket 7.5)
+    (sort age-path-pairs < #:key (lambda (pair) (car pair)))) ;; put into untyped region since type checker cannot work with polymorphic key-word parameter (racket <=7.5)
   (provide sort-by-age))
 
 (require/typed 'UNTYPED
@@ -220,7 +217,7 @@
          (--fill-gaps remaining-age-path-pairs
                      (add1 n)
                      (cons `(,n ,(second (first remaining-age-path-pairs))) current-result))]
-        [(>= n  (first (second remaining-age-path-pairs)))
+        [(>= n (first (second remaining-age-path-pairs)))
          (--fill-gaps (cdr remaining-age-path-pairs)
                      (add1 n)
                      (cons `(,n ,(second (second remaining-age-path-pairs))) current-result))]
@@ -553,13 +550,12 @@
 (: --get-all-increment-manifests-of-chain : String (Listof Path) (Listof Path) -> (Listof Path))
 ;; get all manifest files of all incrementals within one full (chain) starting with from-date
 (define (--get-all-increment-manifests-of-chain from-date full-backup-files collected-manifest-files)
-  (let ([manifest (get-manifest-based-on from-date full-backup-files)])
-    (if (path? manifest)
-        (begin
-          (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest)
-                                                 full-backup-files
-                                                 (cons manifest collected-manifest-files)))
-        collected-manifest-files)))
+  (define manifest (get-manifest-based-on from-date full-backup-files))
+  (if (path? manifest)
+      (--get-all-increment-manifests-of-chain (get-to-datestr-of-chain manifest)
+                                             full-backup-files
+                                             (cons manifest collected-manifest-files))
+      collected-manifest-files))
 
 (module+ test #| get chains related to |#
   (check-equal? (get-chains-related-to

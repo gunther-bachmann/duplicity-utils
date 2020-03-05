@@ -125,6 +125,16 @@
              (map (lambda (path) (list (backup-age-in-months path reference-date) path))
                   paths))
          #+end_src
+
+      *you all know that - I just like repeating myself*
+
+      - little reminder
+        - an opening parenthesis is a function call (in rare cases a macro call)
+        - first symbol after opening parenthesis is a function (in rare cases a macro)
+        - all following symbols are parameters to that function
+        - in racket (), [] and {} are semantically equivalent
+        - racket is not lazy, it is strict
+        - it'ss a scheme thus a lisp-1 (one namespace for functions and variables)
 ***** typed
 
       *static vs. dynamic, want to start a flame war?*
@@ -133,9 +143,15 @@
          #+begin_src racket
            (define-type AgePathPair (List Nonnegative-Integer Path))
 
+           ;; typing through annotation
            (: pair-with-age (((Listof Path)) (Date) . ->* . (Listof AgePathPair)))
            ;; pair path with age (or generation)
            (define (pair-with-age paths [reference-date (gg:now)])
+             (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path))
+                  paths))
+
+           ;; inlined typing
+           (define (pair-with-age [paths : (Listof Path)] [reference-date : Date (gg:now)]) : (Listof AgePathPair)
              (map (lambda ([path : Path]) (list (backup-age-in-months path reference-date) path))
                   paths))
          #+end_src
@@ -149,6 +165,7 @@
           (: next-age-ge (([age : Nonnegative-Integer] [_ : (Setof Nonnegative-Integer)])
                           . -> . (Refine [next-age : Nonnegative-Integer] (>= next-age age))))
         #+end_src
+
       - source ([[file:duplicity-get-fulls-to-delete.rkt::251][link]])
          #+begin_src racket
            (: fib : Nonnegative-Integer -> Nonnegative-Integer)
@@ -220,6 +237,7 @@
 # eval: (org-tree-slide-content)
 # eval: (org-tree-slide-content)
 # eval: (setq org-show-notification-handler #'(lambda (msg) (message msg)))
+# eval: (read-only-mode +1)
 # gb/org-tree-slide-presentation-length: 30
 # gb/slides-started: nil
 # End:
