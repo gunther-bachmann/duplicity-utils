@@ -1,6 +1,6 @@
 #+title: backup integration
 #+property: spellcheck no
-* _Backup integration_
+* Backup integration
 ** requirements
       - save current state of file data, keep generations
       - ability to restore files, different versions (slow is ok)
@@ -101,20 +101,31 @@
         $$F_n = F_{n-1} + F_{n-2}$$
       with $F_1 = F_2 = 1$, and conventionally defining $F_0 = 0$.
 
-      - /which generations to keep?/
-      - 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 ...
-        - rules when to keep backup
-          - is one of the four youngest ones
-          - is the oldest
-          - month age / generation is a fib number or becomes a fib number
-            - e.g. (A0 B1 C3 D5 [E6] F8 [G10] H11) ;; E and G would be dropped, but ...
-            - adding generations without additional backups ...
-            - (A0 B1 C3 D5 [E6] F8  [G10] H11)
-              (A1 B2 C4 D6 [E7] F9  [G11] H12)
-              (A2 B3 C5 D7 [E8] F10 [G12] H13) ;; H now @ fib# 13
-              *BUT WANTED IS*
-              (A2 B3 C5 D6 E8 [F10] [G12] H13) ;; drop F and G
-            - (A10 B11 C13 D14 E16 [F18] [G20] H21) ;; F and G are still dropped @ fib# 21
+      0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 ...
+
+      Fibonacci numbers are named after Italian mathematician Leonardo of Pisa,
+      later known as Fibonacci.
+
+      In his 1202 book /Liber Abaci/, Fibonacci introduced the sequence to Western European mathematics,
+      although the sequence had been described earlier in Indian mathematics, as early as 200 BC
+      in work by Pingala on enumerating possible patterns of Sanskrit poetry
+      formed from syllables of two lengths.
+**** keep which?
+
+      *which generations to keep?*
+
+      - rules when to keep backup:
+        - is one of the four youngest ones
+        - is the oldest
+        - month age / generation is a fib number or becomes a fib number
+          - e.g. (A0 B1 C3 D5 [E6] F8 [G10] H11) ;; E and G would be dropped, but ...
+          - adding generations without additional backups ...
+          - (A0 B1 C3 D5 [E6] F8  [G10] H11)
+            (A1 B2 C4 D6 [E7] F9  [G11] H12)
+            (A2 B3 C5 D7 [E8] F10 [G12] H13) ;; H now @ fib# 13
+            *BUT WANTED IS*
+            (A2 B3 C5 D6 E8 [F10] [G12] H13) ;; drop F and G
+          - (A10 B11 C13 D14 E16 [F18] [G20] H21) ;; F and G are still dropped @ fib# 21
 **** racket
 
       *yeah, could have used some other language but that wouldn't have been any fun!*
