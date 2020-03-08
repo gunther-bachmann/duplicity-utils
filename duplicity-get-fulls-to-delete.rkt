@@ -681,9 +681,9 @@
          (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
          (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files))
                                           (set->list (hash-ref classified-sigfiles 'discard))))
-         (printf "keeping ~s\n" (hash-ref classified-sigfiles 'kept))
+         (printf "keeping ~s\n" (hash-ref classified-sigfiles 'keep))
          (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
-         (printf "discard along with sigfile, depended files: ~s\n" discarded-dep-files)
+         (printf "discard along with sigfile, dependend files: ~s\n" discarded-dep-files)
          (for-each (lambda ([path : Any])
                      (when (path? path)
                        (begin
