@@ -15,3 +15,8 @@
    For coverage analysis, execute ~raco cover duplicity-get-fulls-to-delete.rkt~ and visit file:coverage/index.html
 
    Create documentation by executing e.g. ~raco scribble literate-p.rkt~.
+** changelog / todos
+   - [ ] write properties that are checked before deletion is carried out
+   - [ ] implement property based testing for these properties
+   - [ ] provide podman based image for a backend that can be queried via rest services
+   - [ ] write react redux based frontend against that backend
