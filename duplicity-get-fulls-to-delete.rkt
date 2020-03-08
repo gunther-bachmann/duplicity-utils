@@ -521,6 +521,12 @@
           full-backup-files))
 
 (module+ test #| get manifest based on |#
+  (check-true (void? (get-manifest-based-on "" '())))
+  (check-true (void? (get-manifest-based-on "some" '())))
+  (check-true (void? (get-manifest-based-on "2019" `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))))
+  (check-true (void? (get-manifest-based-on "20191011T115918Z" `(,(string->path "duplicity-inc.20191011T115918Z.t.20191011T121221Z.manifest.gpg")))))
+  (check-true (void? (get-manifest-based-on "20191011T121221Z" `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))))
+  (check-true (path? (get-manifest-based-on "20191011T115918Z" `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))))
   (check-equal? (get-manifest-based-on
                  "20191011T115918Z"
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
