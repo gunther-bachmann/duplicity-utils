@@ -255,7 +255,7 @@
 # eval: (org-tree-slide-content)
 # eval: (setq org-show-notification-handler #'(lambda (msg) (message msg)))
 # eval: (read-only-mode +1)
-# gb/org-tree-slide-presentation-length: 30
+# org-tree-slide-presentation-length: 30
 # gb/slides-started: nil
 # eval: (setq org-format-latex-options (plist-put org-format-latex-options :scale 2.6))
 # eval: (progn (setq current-prefix-arg '(16))(call-interactively 'org-latex-preview))
