@@ -47,6 +47,13 @@
 (module+ test #| process config line |#
   (check-false (hash-has-key? (process-config-line "some: value" (hash)) 'some))
   (check-true (hash-has-key? (process-config-line "backup-folder: value" (hash)) 'backup-folder))
+  (check-false (hash-has-key? (process-config-line "#backup-folder: value" (hash)) 'backup-folder))
+  (check-false (hash-has-key? (process-config-line "backup-folder : value" (hash)) 'backup-folder))
+  (check-false (hash-has-key? (process-config-line " backup-folder: value" (hash)) 'backup-folder))
+  (check-equal? (hash-ref (process-config-line "backup-folder:value" (hash)) 'backup-folder)
+                "value")
+  (check-equal? (hash-ref (process-config-line "backup-folder:       value" (hash)) 'backup-folder)
+                "value")
   (check-equal? (hash-ref (process-config-line "backup-folder: value" (hash)) 'backup-folder)
                 "value")
   (check-equal? (hash-ref (process-config-line "backup-folder: /some/path/to/backup" (hash)) 'backup-folder)
@@ -55,13 +62,11 @@
 (: process-config-line : String Configuration -> Configuration)
 ;; process one configuration line and return enriched configuration
 (define (process-config-line line configuration)
-  (define matched (regexp-match #rx"^([^:]*): (.*)" line))
+  (define matched (regexp-match #rx"^([^# ][^:]*): *(.*)" line))
   (if matched
-      (let ([key   (list-ref (cdr matched) 0)] ;; regexp could return this to be #f
-            [value (list-ref (cdr matched) 1)]) ;; same ...
-        (if (and (string? key) ;; to ensure that resulting type is correct
-                 (string? value) ;; same ...
-                 (hash-has-key? known-config-keys key))
+      (let ([key   (assert (list-ref (cdr matched) 0) string?)] ;; regexp could return this to be #f
+            [value (assert (list-ref (cdr matched) 1) string?)]) ;; same ...
+        (if (hash-has-key? known-config-keys key)
             (hash-set configuration (string->symbol key) value)
             configuration))
       configuration))
