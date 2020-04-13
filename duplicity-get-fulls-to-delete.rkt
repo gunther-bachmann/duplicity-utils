@@ -16,6 +16,7 @@
 ;; #! /usr/bin/env nix-shell
 ;; #! nix-shell -i racket -p racket-minimal
 
+
 ;; import gregorian dates with typing
 (require/typed (prefix-in gg: gregor)
   [#:opaque gg:Date gg:date?]
@@ -668,6 +669,96 @@
   (define discard         (set-subtract (list->set sigfiles) keep))
   (hash 'keep keep 'discard discard))
 
+(: --validated-intervals : (Listof Nonnegative-Integer) (Setof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
+(define (--validated-intervals sorted-ages result)
+  (cond [(empty? sorted-ages)
+         result]
+        [(= 1 (length sorted-ages))
+         (set-add result (next-age-ge (car sorted-ages) fib-backup-ages-to-keep))]
+        [else
+         (define backup-n (first sorted-ages))
+         (define backup-o (second sorted-ages))
+         (define backup-n-ni (next-age-ge backup-n fib-backup-ages-to-keep))
+         (define backup-o-ni (next-age-ge backup-o fib-backup-ages-to-keep))
+         (define new-result (if (>= (- backup-o-ni backup-n-ni)
+                                   (- backup-o backup-n))
+                                (set-add result backup-n-ni)
+                                result))
+         (--validated-intervals (cdr sorted-ages) new-result)]))
+
+(module+ test #| validated-intervals |#
+  (check-equal? (validated-intervals '(0 1 2 3 4 5 6 7 8 9 10))
+                (set 0 1 2 3 5 8 13))
+  (check-equal? (validated-intervals '(0 1 2 3 5 8 13))
+                (set 0 1 2 3 5 8 13))
+  (check-equal? (validated-intervals '())
+                (set))
+  (check-equal? (validated-intervals '(0 10))
+                (set 0 13))
+  (check-equal? (validated-intervals '(0 4))
+                (set 0 5))
+  (check-equal? (validated-intervals '(0 3 4 8)) ;; 4 does not cover interval 4-5, since between 4 and 8 is a larger distance, than it should be (should be max: 3 [8-5])
+                (set 0 3 8))
+  (check-equal? (validated-intervals '(0 3 5 7))
+                (set 0 3 5 8))
+  (check-equal? (validated-intervals '(0 3 5 7 13)) ;; 7 does not cover interval 6-8, since between 7 and 13 is a larger dinstance, than it should be (should be max 5 [13-8])
+                (set 0 3 5 13)))
+
+(: validated-intervals : (Listof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
+;; get the valid/satisfied intervalls by fib-numbers of the given backup ages, taking distances between backups into account
+(define (validated-intervals sorted-ages)
+  (--validated-intervals sorted-ages (set)))
+
+(module+ test #| unsatisfied-intervals |#
+  (check-equal? (unsatisfied-intervals '(0 1 2 3 4 5 6 7 8 9 10))
+                (set))
+  (check-equal? (unsatisfied-intervals '(0 1 2 3 5 8 13))
+                (set))
+  (check-equal? (unsatisfied-intervals '())
+                (set))
+  (check-equal? (unsatisfied-intervals '(0 10))
+                (set 1 2 3 5 8))
+  (check-equal? (unsatisfied-intervals '(0 4))
+                (set 1 2 3))
+  (check-equal? (unsatisfied-intervals '(0 3 4 8)) ;; 4 does not cover interval 4-5, since between 4 and 8 is a larger distance, than it should be (should be max: 3 [8-5])
+                (set 1 2 5))
+  (check-equal? (unsatisfied-intervals '(0 3 5 7))
+                (set 1 2))
+  (check-equal? (unsatisfied-intervals '(0 3 5 7 13)) ;; 7 does not cover interval 6-8, since between 7 and 13 is a larger dinstance, than it should be (should be max 5 [13-8])
+                (set 1 2 8)))
+
+(: unsatisfied-intervals : (Listof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
+;; return the fib-numbers of the intervals that are not satisfied by the given backup ages, taking distances between backups into account
+(define (unsatisfied-intervals sorted-ages)
+  (cond [(empty? sorted-ages)
+         (set)]
+        [else
+         (define valid-intervals (validated-intervals sorted-ages))
+         (define max-interval (apply max (set->list valid-intervals)))
+         (set-filter (set-subtract fib-backup-ages-to-keep (validated-intervals sorted-ages))
+                     (lambda ([n : Nonnegative-Integer]) (<= n max-interval)))]))
+
+(: --set-filter (All (A) (-> (Setof A) (Setof A) (-> A Boolean) (Setof A))))
+(define (--set-filter unfiltered-set filtered-set predicate)
+  (cond [(set-empty? unfiltered-set)
+         filtered-set]
+        [else
+         (define new-filtered-set (if (predicate (set-first unfiltered-set))
+                                      (set-add filtered-set (set-first unfiltered-set))
+                                      filtered-set))
+         (--set-filter (set-rest unfiltered-set) new-filtered-set predicate)]))
+
+(module+ test #| set-filter |#
+  (check-equal? (set-filter (set 1 2 3) (lambda ([x : Integer]) (zero? (modulo x 2))))
+                (set 2))
+  (check-equal? (set-filter (set "a" "bc" "d") (lambda ([x : String]) (< 1 (string-length x))))
+                (set "bc")))
+
+(: set-filter (All (A) (-> (Setof A) (-> A Boolean) (Setof A))))
+;; filter the given set, keeping only values that satisfy the predicate
+(define (set-filter unfiltered-set predicate)
+  (--set-filter unfiltered-set (set-subtract unfiltered-set unfiltered-set) predicate))
+
 ;; simple check and print of current kept and discarded backups (no actual actions taken)
 (define (check-backups)
   (printf "locating configuration\n")
@@ -678,6 +769,7 @@
          (define full-backup-files   (directory-list backup-dir))
          (define full-sig-files      (filter matched-backup-file full-backup-files))
          (define classified-sigfiles (classify-sigfiles full-sig-files))
+         ;; TODO check that the files to drop to not change the set of validated intervals!
          (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
          (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files))
                                           (set->list (hash-ref classified-sigfiles 'discard))))
