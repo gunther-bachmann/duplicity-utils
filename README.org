@@ -66,7 +66,7 @@
      - and! there may not arise this situation in the future => interval borders are of interest here
 
 ** changelog / todos
-   - [ ] write properties that are checked before deletion is carried out
+   - [X] write properties that are checked before deletion is carried out
    - [ ] implement property based testing for these properties
    - [ ] provide podman based image for a backend that can be queried via rest services
    - [ ] write react redux based frontend against that backend

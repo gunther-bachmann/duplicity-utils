@@ -669,6 +669,19 @@
   (define discard         (set-subtract (list->set sigfiles) keep))
   (hash 'keep keep 'discard discard))
 
+(module+ test #| age-path-pairs->ages |#
+  (check-equal? (age-path-pairs->ages (list (list 1 (string->path "some"))))
+                (list 1))
+  (check-equal? (age-path-pairs->ages (list (list 1 (string->path "some")) (list 2 (string->path "other"))))
+                (list 1 2))
+  (check-equal? (age-path-pairs->ages (list))
+                (list)))
+
+(: age-path-pairs->ages : (Listof AgePathPair) -> (Listof Nonnegative-Integer))
+;; get only ages from age path pairs
+(define (age-path-pairs->ages age-path-pairs)
+  (map (lambda ([pair : AgePathPair]) (first pair)) age-path-pairs))
+
 (: --validated-intervals : (Listof Nonnegative-Integer) (Setof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
 (define (--validated-intervals sorted-ages result)
   (cond [(empty? sorted-ages)
@@ -708,6 +721,14 @@
 ;; get the valid/satisfied intervalls by fib-numbers of the given backup ages, taking distances between backups into account
 (define (validated-intervals sorted-ages)
   (--validated-intervals sorted-ages (set)))
+
+(: get-validated-intervals (((Listof Path)) (Date) . ->* . (Setof Nonnegative-Integer)))
+;; classify sig files of full backups into 'keep or 'discard
+(define (get-validated-intervals sigfiles [reference-date (gg:now)])
+  (define sorted-sigfiles (sort sigfiles path>?))
+  (define age-file-pairs  (sort-by-age (unique-ages-path-pairs (pair-with-age sigfiles reference-date))))
+  (define ages            (age-path-pairs->ages age-file-pairs))
+  (validated-intervals ages))
 
 (module+ test #| unsatisfied-intervals |#
   (check-equal? (unsatisfied-intervals '(0 1 2 3 4 5 6 7 8 9 10))
@@ -769,20 +790,30 @@
          (define full-backup-files   (directory-list backup-dir))
          (define full-sig-files      (filter matched-backup-file full-backup-files))
          (define classified-sigfiles (classify-sigfiles full-sig-files))
-         ;; TODO check that the files to drop to not change the set of validated intervals!
          (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
          (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files))
                                           (set->list (hash-ref classified-sigfiles 'discard))))
-         (printf "keeping ~s\n" (hash-ref classified-sigfiles 'keep))
+         (define intervals           (get-validated-intervals full-sig-files))
+         (define intervals-after     (get-validated-intervals (set->list (hash-ref classified-sigfiles 'keep))))
+         (printf "validated intervals ~s\n" intervals)
+         (printf "validated intervals heeding deletion ~s\n" intervals-after)
+         (printf "keep ~s\n" (hash-ref classified-sigfiles 'keep))
          (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
          (printf "discard along with sigfile, dependend files: ~s\n" discarded-dep-files)
-         (for-each (lambda ([path : Any])
-                     (when (path? path)
-                       (begin
-                         (printf "moving discarded file ~s to ~s" path sec-dump)
-                         ;; (rename-file-or-directory path sec-dump)
-                         )))
-                   (flatten discarded-dep-files))]
+         (cond [(and (set=? intervals intervals-after)
+                     (not (set-empty? (hash-ref classified-sigfiles 'discard))))
+                (printf "Discarding superfluous backups ...\n")
+                (for-each (lambda ([path : Any])
+                            (when (path? path)
+                              (begin
+                                (printf "moving discarded file ~s to ~s" path sec-dump)
+                                ;; (rename-file-or-directory path sec-dump)
+                                )))
+                          (flatten discarded-dep-files))]
+               [(not (set=? intervals intervals-after))
+                (printf "WARNING: Not doing anything, since interval would be incomplete.\n")]
+               [else
+                (printf "Found nothing to discard.")])]
         [else
          (printf "dir ~s does not exist\n" backup-dir)]))
 
