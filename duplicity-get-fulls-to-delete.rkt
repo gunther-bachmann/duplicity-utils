@@ -476,12 +476,28 @@
 (define (kept-paths all-paths age-path-pairs)
   (--kept-paths all-paths age-path-pairs (set) backup-keep-functions))
 
-(: get-full-related-to : Path String (Listof Path) -> (Listof Path))
+(module+ test #| get full related to |#
+  (check-equal? (get-full-related-to
+                 (string->path "duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
+                 `(,(string->path "duplicity-full.20191011T115918Z.manifest.gpg")
+                   ,(string->path "duplicity-full.20191011T115918Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-full.20191011T115918Z.vol2.difftar.gpg")
+                   ,(string->path "duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
+                   ,(string->path "duplicity-full.20191111T093003Z.manifest.gpg")
+                   ,(string->path "duplicity-full.20191111T093003Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-full-signatures.20191111T093003Z.sigtar.gpg")))
+                `(,(string->path "duplicity-full.20191011T115918Z.manifest.gpg")
+                   ,(string->path "duplicity-full.20191011T115918Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-full.20191011T115918Z.vol2.difftar.gpg")
+                   ,(string->path "duplicity-full-signatures.20191011T115918Z.sigtar.gpg"))))
+
+(: get-full-related-to : Path (Listof Path) -> (Listof Path))
 ;; get all files related to the following full-backup
-(define (get-full-related-to sig-file backup-dir full-backup-files)
-  (define date (regexp-replace #rx".*signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1"))
+(define (get-full-related-to sig-file full-backup-files)
+  (define date (regexp-replace #rx"duplicity-full-signatures\\.(.*)\\.sigtar.gpg" (path->string sig-file) "\\1"))
+  (define full-regexp (regexp (format "duplicity-full(-signatures)?\\.~a\\.(manifest|vol[0-9]+\\.difftar|sigtar)\\.gpg" date)))
   (filter (lambda ([path : Path])
-            (regexp-match (regexp (format ".*duplicity-full\\.~a\\..*" date)) (path->string path)))
+            (regexp-match full-regexp (path->string path)))
           full-backup-files))
 
 (module+ test #| get to datestr of chain |#
