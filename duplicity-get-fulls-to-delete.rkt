@@ -43,7 +43,7 @@
 (define full-backup-ls-pattern : Regexp #rx"duplicity-full-signatures\\..*\\.sigtar\\.gpg$")
 
 ;; configuration known and processed when reading the configuration
-(define known-config-keys : (HashTable String Boolean) (hash "backup-folder" #t))
+(define known-config-keys : (HashTable String Boolean) (hash "backup-folder" #t "temp-folder" #t))
 
 (module+ test #| process config line |#
   (check-false (hash-has-key? (process-config-line "some: value" (hash)) 'some))
@@ -790,8 +790,8 @@
          (define full-backup-files   (directory-list backup-dir))
          (define full-sig-files      (filter matched-backup-file full-backup-files))
          (define classified-sigfiles (classify-sigfiles full-sig-files))
-         (define sec-dump            (build-path (find-system-path 'home-dir) "temp"))
          (define discarded-dep-files (map (lambda ([path : Path]) (get-chains-related-to path full-backup-files))
+         (define sec-dump            (hash-ref config 'temp-folder))
                                           (set->list (hash-ref classified-sigfiles 'discard))))
          (define intervals           (get-validated-intervals full-sig-files))
          (define intervals-after     (get-validated-intervals (set->list (hash-ref classified-sigfiles 'keep))))
