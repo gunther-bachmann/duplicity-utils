@@ -520,21 +520,25 @@
   (check-equal? (get-increment-based-on
                  (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")
+                   ,(string->path "duplicity-new-signatures.20191011T115918Z.to.20191011T121221Z.sigtar.gpg")
                    ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                   ,(string->path "duplicity-new-signatures.20191011T121221Z.to.20191012T121221Z.sigtar.gpg")
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.difftar.gpg")))
                 `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg"))))
+                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                  ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")
+                  ,(string->path "duplicity-new-signatures.20191011T115918Z.to.20191011T121221Z.sigtar.gpg"))))
 
 (: get-increment-based-on : Path (Listof Path) -> (Listof Path))
 ;; get files of the incremental backup based on the given manifest file of this increment
 (define (get-increment-based-on manifest-file full-backup-files)
   (define from-date (get-from-datestr-of-chain manifest-file))
   (define to-date   (get-to-datestr-of-chain manifest-file))
+  (define increment-regexp (regexp (format "duplicity-(inc|new-signatures)\\.~a\\.to\\.~a\\.(manifest|vol[0-9]+\\.difftar|sigtar)\\.gpg" from-date to-date)))
   (filter (lambda ([path : Path])
-            (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\.~a\\..*" from-date to-date)) (path->string path)))
+            (regexp-match increment-regexp (path->string path)))
           full-backup-files))
 
 (module+ test #| get manifest based on |#
