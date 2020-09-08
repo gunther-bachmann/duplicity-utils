@@ -551,30 +551,32 @@
   (check-equal? (get-manifest-based-on
                  "20191011T115918Z"
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")
                    ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.difftar.gpg")))
                 (string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")))
 
 (: get-manifest-based-on : String (Listof Path) -> (U Path Void))
 ;; get manifest of incremental backup from date (string)
 (define (get-manifest-based-on from-date-str full-backup-files)
-  (define related-files (filter (lambda ([path : Path])
-                                  (regexp-match (regexp (format ".*duplicity-inc\\.~a\\.to\\..*\\.manifest\\..*" from-date-str))
-                                                (path->string path)))
+  (define dupl-regexp (regexp (format "duplicity-inc\\.~a\\.to\\..*\\.manifest\\.gpg" from-date-str)))
+  (define related-files (memf (lambda ([path : Path])
+                                  (begin
+                                    (regexp-match dupl-regexp
+                                                  (path->string path))))
                                 full-backup-files))
-  (when (not (empty? related-files))
+  (when related-files
     (first related-files)))
 
 (module+ test #| get all increment manifests of chain |#
   (check-equal? (--get-all-increment-manifests-of-chain
                  "20191011T115918Z"
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")
                    ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg"))
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.difftar.gpg"))
                  '())
                 `(,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg"))))
@@ -593,15 +595,15 @@
   (check-equal? (get-chains-related-to
                  (string->path "/run/media/myself/harddrive/data-backup/duplicity-full-signatures.20191011T115918Z.sigtar.gpg")
                  `(,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")
                    ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg")))
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.difftar.gpg")))
                 `((,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.gpg"))
+                   ,(string->path "duplicity-inc.20191011T121221Z.to.20191012T121221Z.vol1.difftar.gpg"))
                   (,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.manifest.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.gpg")
-                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.gpg")))))
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol1.difftar.gpg")
+                   ,(string->path "duplicity-inc.20191011T115918Z.to.20191011T121221Z.vol2.difftar.gpg")))))
 
 (: get-chains-related-to : Path (Listof Path) -> (Listof (Listof Path)))
 ;; get incrementals and files of those from the given full-backup
