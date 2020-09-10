@@ -308,17 +308,17 @@
 
 (: keep-first-n : Nonnegative-Integer (Listof Path) (Listof AgePathPair) -> (Setof Path))
 ;; keep the first n paths from the given list of age path pairs
-(define (keep-first-n n all-paths age-path-pairs)
+(define (keep-first-n n all-paths _)
   (list->set (take all-paths (min (length all-paths) n))))
 
 (: keep-oldest : (Listof Path) (Listof AgePathPair) -> (Setof Path))
 ;; keep the oldest path
-(define (keep-oldest all-paths age-path-pairs)
+(define (keep-oldest _ age-path-pairs)
   (set (cadr (last (sort-by-age age-path-pairs)))))
 
 (: keep-by-age-list : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
 ;; keep all paths because generation / age is in list to keep
-(define (keep-by-age-list backup-ages-to-keep all-paths age-path-pairs)
+(define (keep-by-age-list backup-ages-to-keep _ age-path-pairs)
   (define filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs)))
   (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs)))
 
