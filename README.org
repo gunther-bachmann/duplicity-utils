@@ -24,42 +24,42 @@
      - don't punch holes that leave large black spots! what are large black spots?
      - further back, larger back spots are tolerated
      - given a certain number of backups $n_b$, regardless of their age
-     - given the following interval [][-][-][-][--][---][-----][--------][-------------]
+     - given the following interval ~[][-][-][-][--][---][-----][--------][-------------]~
        I want a backup within each interval
        a backup can be deleted if I can still guarantee, that each interval is populated, even if time goes on (and no further backups are made)
        if only some intervals are populated to begin with, the situation must not become worse (not even in the future)
-       [o][o][o][o][-o][--o][----o][-------o][------------o] ;; each fib number has a backup generation
+       ~[o][o][o][o][-o][--o][----o][-------o][------------o]~ ;; each fib number has a backup generation
 
-             0  1  2  3   5    8     13        21             34
+:           0  1  2  3   5    8     13        21             34
 
 
-                                   1111  11111122  2222222233333
-             0  1  2  3  45  678  90123  45678901  2345678901234
-            [o][o][o][o][-o][--o][o----][-------o][------------o] ;; now ok, next gen not ok,
-         1  [-][o][o][o][o-][o--][oo---][--------][o------------] ;; nok
-         2  [-][-][o][o][oo][-o-][-oo--][--------][-o-----------] ;; nok
-         3  [-][-][-][o][oo][o-o][--oo-][--------][--o----------] ;; nok
-         4  [-][-][-][-][o#][oo-][o--oo][--------][---o---------] ;; nok
-         5  [-][-][-][-][-o][##o][-#--o][o-------][----o--------] ;; ok
-         6  [-][-][-][-][--][o##][o-#--][o#------][-----o-------] ;; ok
-         7  [-][-][-][-][--][-o#][#o-#-][-o#-----][------o------]
-         8  [-][-][-][-][--][--o][##o-#][--o#----][-------o-----]
-         9  [-][-][-][-][--][---][o###-][#--o#---][--------o----]
-        10  [-][-][-][-][--][---][-o###][-#--o#--][---------o---]
-        11  [-][-][-][-][--][---][--o##][#-#--o#-][----------o--]
-        12  [-][-][-][-][--][---][---o#][##-#--o#][-----------o-]
-        13  [-][-][-][-][--][---][----o][###-#--o][#-----------o] ;; next ideal
-        14  [-][-][-][-][--][---][-----][oooo-o--][oo-----------]
-        15  [-][-][-][-][--][---][-----][-oooo-o-][-oo----------]
-        16  [-][-][-][-][--][---][-----][--oooo-o][--oo---------]
-        17  [-][-][-][-][--][---][-----][---oooo-][o--oo--------]
-        18  [-][-][-][-][--][---][-----][----oooo][-o--oo-------]
-        19  [-][-][-][-][--][---][-----][-----ooo][o-o--oo------]
-        20  [-][-][-][-][--][---][-----][------oo][oo-o--oo-----]
-        21  [-][-][-][-][--][---][-----][-------o][ooo-o--oo----]
-        22  [-][-][-][-][--][---][-----][--------][oooo-o--oo---]
-        23  [-][-][-][-][--][---][-----][--------][-oooo-o--oo--]
-        24  [-][-][-][-][--][---][-----][--------][--oooo-o--oo-]
+:                                 1111  11111122  2222222233333
+:           0  1  2  3  45  678  90123  45678901  2345678901234
+:          [o][o][o][o][-o][--o][o----][-------o][------------o] ;; now ok, next gen not ok,
+:       1  [-][o][o][o][o-][o--][oo---][--------][o------------] ;; nok
+:       2  [-][-][o][o][oo][-o-][-oo--][--------][-o-----------] ;; nok
+:       3  [-][-][-][o][oo][o-o][--oo-][--------][--o----------] ;; nok
+:       4  [-][-][-][-][o#][oo-][o--oo][--------][---o---------] ;; nok
+:       5  [-][-][-][-][-o][##o][-#--o][o-------][----o--------] ;; ok
+:       6  [-][-][-][-][--][o##][o-#--][o#------][-----o-------] ;; ok
+:       7  [-][-][-][-][--][-o#][#o-#-][-o#-----][------o------]
+:       8  [-][-][-][-][--][--o][##o-#][--o#----][-------o-----]
+:       9  [-][-][-][-][--][---][o###-][#--o#---][--------o----]
+:      10  [-][-][-][-][--][---][-o###][-#--o#--][---------o---]
+:      11  [-][-][-][-][--][---][--o##][#-#--o#-][----------o--]
+:      12  [-][-][-][-][--][---][---o#][##-#--o#][-----------o-]
+:      13  [-][-][-][-][--][---][----o][###-#--o][#-----------o] ;; next ideal
+:      14  [-][-][-][-][--][---][-----][oooo-o--][oo-----------]
+:      15  [-][-][-][-][--][---][-----][-oooo-o-][-oo----------]
+:      16  [-][-][-][-][--][---][-----][--oooo-o][--oo---------]
+:      17  [-][-][-][-][--][---][-----][---oooo-][o--oo--------]
+:      18  [-][-][-][-][--][---][-----][----oooo][-o--oo-------]
+:      19  [-][-][-][-][--][---][-----][-----ooo][o-o--oo------]
+:      20  [-][-][-][-][--][---][-----][------oo][oo-o--oo-----]
+:      21  [-][-][-][-][--][---][-----][-------o][ooo-o--oo----]
+:      22  [-][-][-][-][--][---][-----][--------][oooo-o--oo---]
+:      23  [-][-][-][-][--][---][-----][--------][-oooo-o--oo--]
+:      24  [-][-][-][-][--][---][-----][--------][--oooo-o--oo-]
      - rule: the distance between two backups must not be > than the interval width the older one is in
      - reformulated: given an interval within which a backup exists, the next older available backup must not be farther away than the
        interval length (of the older/newer one)
@@ -67,6 +67,8 @@
 
 ** changelog / todos
    - [X] write properties that are checked before deletion is carried out
+   - [X] complete moving to temporary folder
+   - [ ] cleanup local cache of duplicity meta data (in ~~/.cache/duplicity~) after (re)move of obsolete backup files
    - [ ] implement property based testing for these properties
    - [ ] provide podman based image for a backend that can be queried via rest services
    - [ ] write react redux based frontend against that backend
