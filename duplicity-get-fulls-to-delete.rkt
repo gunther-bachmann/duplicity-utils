@@ -617,11 +617,11 @@
 (module+ test #| unique-ages-path-pairs |#
   (check-equal?
    (--unique-ages-path-pairs (pair-with-age (list valid-path-20200502 ;; age 5, keep is fib # (used for 6, 7 too)
-                                                 valid-path-20200514 ;; age 5, keep (four youngest)
-                                                 valid-path-20200605 ;; age 4
-                                                 valid-path-20200701)  ;; age 4
-                                           (gg:date 2020 11 01))
-                            (hash))
+                                                  valid-path-20200514 ;; age 5, keep (four youngest)
+                                                  valid-path-20200605 ;; age 4
+                                                  valid-path-20200701)  ;; age 4
+                                            (gg:date 2020 11 01))
+                             (hash))
    (hash 4 valid-path-20200701 5 valid-path-20200514))
   (check-equal? (--unique-ages-path-pairs '() (hash))
                 (hash)))
