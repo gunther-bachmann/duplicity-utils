@@ -190,6 +190,7 @@ execute_command() {
       printf "min_discharging_level: $MIN_DISCHARGING_LEVEL\n"
       printf "backup_mode          : $BACKUP_MODE\n"
       printf "months_to_full       : $MONTHS_TO_FULL\n"
+      check_validity_of_backup_parameters
       exit 0
       ;;
     collection-status)
@@ -323,7 +324,9 @@ proc_option() {
     yes|y)
       [ "$VERBOSE" == "true" ] && echo "setting dryrun to false => the execution of the program will actually be carried out!"
       DRYRUN=false
-      check_validity_of_backup_parameters
+      if [ "$IN_PREPROCESSING" != true ]; then
+        check_validity_of_backup_parameters
+      fi
       ;;
     verbose|v)
       VERBOSE=true
@@ -512,10 +515,12 @@ COMMAND=${1:-"NONE"}
 if [ $# -ge 1 ]; then
   shift
 fi
+IN_PREPROCESSING=true
 CONFIG_SOURCE="command line"
 read_cli_arguments "$@" # make sure to read profile first
 CONFIG_SOURCE="configuration"
 read_configuration
+IN_PREPROCESSING=false
 CONFIG_SOURCE="command line"
 read_cli_arguments "$@" # overwriting anything that is read from config file but specified in cli
 check_installation
