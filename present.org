@@ -1,5 +1,4 @@
 #+title: backup integration
-#+property: spellcheck no
 * Backup integration
 ** requirements
       - save current state of file data, keep generations
@@ -244,20 +243,15 @@
    - [[https://limitcpu.sourceforge.net/][cpulimit]], [[https://www.kernel.org/pub/linux/utils/util-linux/][ionice]], [[https://www.gnu.org/software/coreutils/][nice]]
    - [[https://www.gnu.org/software/emacs/][emacs]] ([[https://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]], [[https://github.com/takaxp/org-tree-slide][org-tree-slide]])
    - [[https://racket-lang.org/][racket]]
-** pps
-# Local Variables:
-# org-tree-slide-header: nil
-# org-tree-slide-heading-emphasis: t
-# org-tree-slide-modeline-display: 'lighter
-# eval: (org-tree-slide-mode)
-# eval: (org-toggle-inline-images)
-# eval: (goto-char (point-min))
-# eval: (org-tree-slide-content)
-# eval: (setq org-show-notification-handler #'(lambda (msg) (message msg)))
-# eval: (read-only-mode +1)
-# org-tree-slide-presentation-length: 30
-# gb/slides-started: nil
-# eval: (setq org-format-latex-options (plist-put org-format-latex-options :scale 2.6))
-# eval: (progn (setq current-prefix-arg '(16))(call-interactively 'org-latex-preview))
-# eval: (org-tree-slide-content)
-# End:
+
+#+begin_src emacs-lisp
+  ;; Local Variables:
+  ;; org-tree-slide-header: nil
+  ;; org-tree-slide-heading-emphasis: t
+  ;; org-tree-slide-modeline-display: 'lighter
+  ;; org-tree-slide-presentation-length: 30
+  ;; gb/slides-started: nil
+  ;; org-tree-slide-content--pos: nil
+  ;; org-show-notification-handler: #'(lambda (msg) (message msg))
+  ;; End:
+#+end_src
