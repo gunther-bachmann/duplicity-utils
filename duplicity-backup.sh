@@ -489,7 +489,8 @@ check_installation() {
 
 pre_backup_hook() {
   [ "$VERBOSE" == "true" ] && printf "processing pre backup hooks\n"
-  find /home/pe/.duplicity/ -name "pre.${PROFILE}.*.hook" | while read HOOK; do
+  conf_folder=$(find_configuration_folder)
+  find $conf_folder -name "pre.${PROFILE}.*.hook" | while read HOOK; do
     if [ "$DRYRUN" != "false" ]; then
       echo "pre hook: \"$HOOK\" would be executed (if dryrun would be false)."
     else
@@ -500,7 +501,8 @@ pre_backup_hook() {
 
 post_backup_hook() {
   [ "$VERBOSE" == "true" ] && printf "processing post backup hooks\n"
-  find /home/pe/.duplicity/ -name "post.${PROFILE}.*.hook" | while read HOOK; do
+  conf_folder=$(find_configuration_folder)
+  find $conf_folder -name "post.${PROFILE}.*.hook" | while read HOOK; do
     if [ "$DRYRUN" != "false" ]; then
       echo "post hook: \"$HOOK\" would be executed (if dryrun would be false)."
     else
