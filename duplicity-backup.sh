@@ -107,6 +107,7 @@ usage_options() {
   printf "    [--no-cpu-limit]                  don't limit the cpu during backup\n"
 #  printf "    [--notify|n]                      send notifications\n"
   printf "    [--encryption-key keyid]          use the given gpg encryption key for backup encryption\n"
+  printf "    [--include-filelist filelist]     use the given include-filelist during backup\n"
   printf "    [--exclude-filelist filelist]     use the given exclude-filelist during backup\n"
   printf "    [--ignore-within-hours n]         ignore calls to backup within n hours\n"
   printf "    [--backup-folder folder]          use the given backup folder during backup\n"
@@ -117,8 +118,16 @@ usage_options() {
 }
 
 check_exclude_filelist() {
-  if [ ! -f "$EXCLUDE_FILELIST" ]; then
+  if [ "$EXCLUDE_FILELIST" != "" -a ! -f "$EXCLUDE_FILELIST" ]; then
     printf "Excluding file list \"$EXCLUDE_FILELIST\" is not readable. Stopping execution.\n"
+    [ "$DRYRUN" != "true" ] && exit 1
+    printf "Continue because dryrun is $DRYRUN.\n"
+  fi
+}
+
+check_include_filelist() {
+  if [ "$INCLUDE_FILELIST" != "" -a ! -f "$INCLUDE_FILELIST" ]; then
+    printf "Including file list \"$INCLUDE_FILELIST\" is not readable. Stopping execution.\n"
     [ "$DRYRUN" != "true" ] && exit 1
     printf "Continue because dryrun is $DRYRUN.\n"
   fi
@@ -150,6 +159,7 @@ check_encryption_key() {
 
 check_validity_of_backup_parameters() {
   check_key_unlocked
+  check_include_filelist
   check_exclude_filelist
   check_backup_folder
   check_source_folder
@@ -175,6 +185,7 @@ execute_command() {
       printf "dryrun               : $DRYRUN\n"
       printf "fakerun              : $FAKERUN\n"
       printf "encryptionkey        : $ENCRYPTION_KEY\n"
+      printf "include_filelist     : $INCLUDE_FILELIST\n"
       printf "exclude_filelist     : $EXCLUDE_FILELIST\n"
       printf "source_folder        : $SOURCE_FOLDER\n"
       printf "backup_folder        : $BACKUP_FOLDER\n"
@@ -311,6 +322,10 @@ proc_option() {
     exclude-filelist)
       EXCLUDE_FILELIST=$(realpath $(echo $VALUE | sed "s|^\~\(.*\)|$HOME\1|g"))
       [ "$VERBOSE" == "true" ] && echo "using exclude file list: \"$EXCLUDE_FILELIST\""
+      ;;
+    include-filelist)
+      INCLUDE_FILELIST=$(realpath $(echo $VALUE | sed "s|^\~\(.*\)|$HOME\1|g"))
+      [ "$VERBOSE" == "true" ] && echo "using include file list: \"$INCLUDE_FILELIST\""
       ;;
     backup-folder)
       BACKUP_FOLDER="$VALUE"
