@@ -8,6 +8,7 @@ VERBOSE=false                   # printout information while running
 DRYRUN=true                     # check parameter, do not execute duplicity
 FAKERUN=false                   # run duplicity but do not make a backup
 ENCRYPTION_KEY=""               # use this key for encryption
+INCLUDE_FILELIST=""             # use this list for inclusion (passed to duplicity)
 EXCLUDE_FILELIST=""             # use this list for exclusion (passed to duplicity)
 SOURCE_FOLDER=$(realpath ~)     # folder to make actual backup of
 BACKUP_FOLDER=""                # folder into which to store the backup made
@@ -44,6 +45,7 @@ check_battery_level() {
   else
     [ "$VERBOSE" == "true" ] && echo "Battery level ok ($BATLEVEL%), or plugged in."
   fi
+  nop
 }
 
 find_configuration_folder() {
@@ -365,6 +367,7 @@ read_configuration() {
   else
     [ "$VERBOSE" == "true" ] && echo "  no configuration found."
   fi
+  nop
 }
 
 read_cli_arguments() {
@@ -426,26 +429,41 @@ run_backup() {
   fi
   [ "$VERBOSE" == "true" ] && printf "running backup with cpulimit: $CPULIMIT\n"
 
-  CMD="  --full-if-older-than ${MONTHS_TO_FULL}M \
+  CMD=""
+  if [ "$BACKUP_MODE" == "full" ]; then
+    CMD="${CMD} full"
+  else
+    CMD="${CMD} incremental --full-if-older-than ${MONTHS_TO_FULL}M"
+  fi
+
+  CMD="${CMD} \
          --encrypt-key ${ENCRYPTION_KEY} \
          --verbosity 4 \
          --allow-source-mismatch \
          --use-agent \
-         --gpg-options \"--no-tty --pinentry-mode error\" \
-         --exclude-filelist ${EXCLUDE_FILELIST} \
-         ${SOURCE_FOLDER} file://${BACKUP_FOLDER}"
-  [ "$VERBOSE" == "true" ] && printf "running incremental backup with parameter:\n$CMD\n"
+         --gpg-options \"--no-tty --pinentry-mode error\""
+
+  if [ "$INCLUDE_FILELIST" != "" ]; then
+    CMD="${CMD} --include-filelist ${INCLUDE_FILELIST}"
+  fi
+
+  if [ "$EXCLUDE_FILELIST" != "" ]; then
+    CMD="${CMD} --exclude-filelist ${EXCLUDE_FILELIST}"
+  fi
+
+  CMD_TAIL="${SOURCE_FOLDER} file://${BACKUP_FOLDER}"
+  [ "$VERBOSE" == "true" ] && printf "running incremental backup with parameter:\n$CMD $CMD_TAIL\n"
   if [ "$DRYRUN" == "false" ]; then
 #    if [ "$NOTIFICATIONS" == "true" ]; then
 #      notify-send "Starting backup ${PROFILE} ..."
 #    fi
-    eval "nice -n 19 ionice -c 3 cpulimit -l $CPULIMIT -f duplicity -- incr $CMD"
+    eval "nice -n 19 ionice -c 3 cpulimit -l $CPULIMIT -f duplicity -- $CMD $CMD_TAIL"
 #    if [ "$NOTIFICATIONS" == "true" ]; then
 #      notify-send "Finished backup ${PROFILE}, exit code $? !"
 #    fi
   elif [ "$FAKERUN" == "true" ]; then
     printf "Running fake run.\n"
-    eval "nice -n 19 ionice -c 3 cpulimit -l $CPULIMIT -f duplicity -- incr --dry-run $CMD"
+    eval "nice -n 19 ionice -c 3 cpulimit -l $CPULIMIT -f duplicity -- $CMD --dry-run $CMD_TAIL"
     printf "\nWARNING: actual backup was skipped.\nIf you want to actually execute the backup, use the option '--yes'\n"
   else
     printf "WARNING: actual backup step is skipped.\nIf you want to actually execute the backup, use the option '--yes'\n"
