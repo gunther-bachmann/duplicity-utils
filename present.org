@@ -37,8 +37,8 @@
           interval = 120
           format-prefix="✇ "
           format-font = 5
-          click-left = $EDITOR --eval '(let (($buf (generate-new-buffer "backup log")))(with-current-buffer $buf (switch-to-buffer $buf)(setq buffer-offer-save nil) (text-mode) (shell-command "journalctl --user-unit backup-drive.service --since -2w" (current-buffer)) (end-of-buffer)))'
-          click-right = $EDITOR --eval '(let (($buf (generate-new-buffer "collection status")))(with-current-buffer $buf (switch-to-buffer $buf)(setq buffer-offer-save nil) (text-mode) (shell-command "duplicity-backup.sh collection-status" (current-buffer)) (end-of-buffer)))'
+          click-left = $EDITOR --eval '(gb/backup-log-open)'
+          click-right = $EDITOR --eval '(gb/backup-collection-status)'
         #+end_src
 **** systemd service - nixos
 
@@ -70,10 +70,10 @@
           [Unit]
             ConditionPathExists=/run/media/user/684110cc-325f-4307-bce0-843930ff7de6
           [Service]
-            Environment="LOCALE_ARCHIVE=/nix/store/nl67flma20ixa0x5jms4wk0yfbx4c9wb-glibc-locales-2.27/lib/locale/locale-archive"
-            Environment="PATH=/nix/store/afyqk8219zfv5and3pqahzvn6bpmx3dq-gzip-1.10/bin:/nix/store/aawf0q16ql39w2gwv52qyjfzgbg5f22r-gnutar-1.32/bin:/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin:/nix/store/vlsm5hn4d7mrdnx2735ly5a21gyc53z0-duplicity-0.7.19/bin:/nix/store/y7pp6lw95l0l0cpqsqls5lbs6ax43y2m-gnupg-2.2.17/bin:/nix/store/cyc2xjjwy2z7dzc83b8sy1sr91ih70wf-cpulimit-2.6/bin:/nix/store/879vn477qqp4vs1f9m2k1z32mx0ba4av-util-linux-2.33.2-bin/bin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/bin:/nix/store/3x4g6sfj6rd6x95fj4xzz7gkw1p9prcn-dateutils-0.4.6/bin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/bin:/nix/store/0zdsw4qdrwi41mfdwqpxknsvk9fz3gkb-findutils-4.7.0/bin:/nix/store/71y5ddyz8vmsw9wgi3gzifcls53r60i9-gnugrep-3.3/bin:/nix/store/g2h4491kab7l06v9rf1lnyjvzdwy5ak0-gnused-4.7/bin:/nix/store/sh3a8j39frr2csmhf4yvr9frlyj0dnc2-systemd-243.3/bin:/nix/store/afyqk8219zfv5and3pqahzvn6bpmx3dq-gzip-1.10/sbin:/nix/store/aawf0q16ql39w2gwv52qyjfzgbg5f22r-gnutar-1.32/sbin:/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/sbin:/nix/store/vlsm5hn4d7mrdnx2735ly5a21gyc53z0-duplicity-0.7.19/sbin:/nix/store/y7pp6lw95l0l0cpqsqls5lbs6ax43y2m-gnupg-2.2.17/sbin:/nix/store/cyc2xjjwy2z7dzc83b8sy1sr91ih70wf-cpulimit-2.6/sbin:/nix/store/879vn477qqp4vs1f9m2k1z32mx0ba4av-util-linux-2.33.2-bin/sbin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/sbin:/nix/store/3x4g6sfj6rd6x95fj4xzz7gkw1p9prcn-dateutils-0.4.6/sbin:/nix/store/9v78r3afqy9xn9zwdj9wfys6sk3vc01d-coreutils-8.31/sbin:/nix/store/0zdsw4qdrwi41mfdwqpxknsvk9fz3gkb-findutils-4.7.0/sbin:/nix/store/71y5ddyz8vmsw9wgi3gzifcls53r60i9-gnugrep-3.3/sbin:/nix/store/g2h4491kab7l06v9rf1lnyjvzdwy5ak0-gnused-4.7/sbin:/nix/store/sh3a8j39frr2csmhf4yvr9frlyj0dnc2-systemd-243.3/sbin"
-            Environment="TZDIR=/nix/store/yfd0qkf8m908j523xyvwmwrll95ywkdi-tzdata-2019b/share/zoneinfo"
-            ExecStart=/nix/store/rm1hz1lybxangc8sdl7xvzs5dcvigvf7-bash-4.4-p23/bin/bash -c '/home/user/bin/duplicity-backup.sh backup -v -y'
+            Environment="LOCALE_ARCHIVE=/nix/store/nl67flma20ixa0x5jms4wk0yfbx..."
+            Environment="PATH=/nix/store/afyqk8219zfv5and3pqahzvn6bpmx3dq-gzip..."
+            Environment="TZDIR=/nix/store/yfd0qkf8m908j523xyvwmwrll95ywkdi-tzd..."
+            ExecStart=/nix/.../bin/bash -c '/home/user/bin/duplicity-backup.sh backup -v -y'
           #+end_src
           #+begin_src bash
           [Unit]
