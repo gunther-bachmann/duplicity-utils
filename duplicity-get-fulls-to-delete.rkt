@@ -326,6 +326,175 @@
   (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
                 `(,c ,d)))
 
+(define golden-ratio (/  (+ 1 (sqrt 5) ) 2))
+
+(: inverse-fib : Nonnegative-Integer -> Nonnegative-Integer)
+;; inverse fibonacci number (without recursion)
+;; see https://en.wikipedia.org/wiki/Fibonacci_number#Relation_to_the_golden_ratio
+(define (inverse-fib n)
+  (cond ((> n (quick-fib 100)) (raise-user-error 'unsafe-value-domain))
+        ((> n 1)
+         (begin
+           (define result
+             (exact-floor
+              (real-part
+               (/ (log (+ (* n (sqrt 5)) (/ 1 2))) (log golden-ratio)))))
+           (if (>= result 0) ;; satisfy type checker, result cannot become less than 0
+               result
+               0)))
+        ((= n 1) 1)
+        (else 0)))
+
+(: quick-fib : Nonnegative-Integer -> Nonnegative-Integer)
+;; calc fibonacci number without recursion, given the floating point precision exact at least up to 30 (which is enough for this use case)
+(define (quick-fib n)
+  (cond ((> n 100) (raise-user-error 'unsafe-value-domain))
+        ((> n 0)
+         (begin
+           (define result
+             (exact-floor
+              (real-part
+               (+ (/ (expt golden-ratio n) (sqrt 5)) (/ 1 2)))))
+           (if (>= result 0) ;; to satisfy type checker, which cannot analyze to formula above
+               result
+               0)))
+        (else 0)))
+
+(module+ test #| quick-fib, inverse-fib |#
+  (check-equal? (map quick-fib (range 30))
+                (map fib (range 30)))
+  (check-equal? (map inverse-fib (map quick-fib (range 3 100))) ;; before 3, fib inverse-fib is bijective
+                (range 3 100)))
+
+(: interval-num-of : Nonnegative-Integer -> Nonnegative-Integer)
+;; get the interval number n of a backup of age a
+(define (interval-num-of age)
+  (cond ((> age 1)
+         (begin
+           (define result
+             (- (inverse-fib age) 1))
+           (if (>= result 0)
+               result
+               0)))
+        (else age)))
+
+(module+ test #| interval-num-of |#
+  (check-equal? (map interval-num-of
+                     '(0             ;; I0
+                       1             ;; I1
+                       2             ;; I2
+                       3 4           ;; I3
+                       5 6 7         ;; I4
+                       8 9 10 12     ;; I5
+                       13 14 19 20   ;; I6
+                       21 22))       ;; I7
+                '(0         ;; I0
+                  1         ;; I1
+                  2         ;; I2
+                  3 3       ;; I3
+                  4 4 4     ;; I4
+                  5 5 5 5   ;;
+                  6 6 6 6   ;;
+                  7 7)))
+
+(: drop-i-in-triplet? : Nonnegative-Integer Nonnegative-Integer Nonnegative-Integer -> Boolean)
+;; is it safe to drop backup with index i of the given triple of ages of backups with indexes i-1, i, i+1?
+(define (drop-i-in-triplet? age-im1 age-i age-ip1)
+  (define interval-im1 (interval-num-of age-im1))
+  (define interval-i   (interval-num-of age-i))
+  (define interval-ip1 (interval-num-of age-ip1))
+  (cond ((and (equal? interval-im1 interval-i)
+            (equal? interval-i interval-ip1))
+         #t)
+        ((or (equal? interval-im1 interval-i)
+            (equal? interval-i interval-ip1))
+         (< (- age-ip1 age-im1)
+            (interval-length interval-i)))
+        (else #f)))
+
+(module+ test #| drop-i-in-triplet? |#
+  (check-true (drop-i-in-triplet? 5 6 7)) ;; all in interval 4
+  (check-true (drop-i-in-triplet? 10 11 12)) ;; all in interval 5
+  (check-false (drop-i-in-triplet? 0 1 2)) ;; all in different intervals
+  (check-false (drop-i-in-triplet? 3 5 8)) ;; all in different intervals
+
+  (check-true (drop-i-in-triplet? 5 8 9)) ;; 5 enters interval 5 faster than 9 leaves it
+  )
+
+(: interval-length : Nonnegative-Integer -> Positive-Integer)
+;; length (number of months) in the given interval
+(define (interval-length interval-index)
+  (cond ((= 0 interval-index) 1)
+        (else (begin
+                (define result (quick-fib interval-index))
+                (if (>= result 1)
+                    result
+                    1)))))
+
+(module+ test #| interval-length |#
+  (check-equal? (interval-length 0)
+                1)
+  (check-equal? (interval-length 1)
+                1)
+  (check-equal? (interval-length 2)
+                1)
+  (check-equal? (interval-length 3)
+                2)
+  (check-equal? (interval-length 4)
+                3)
+  (check-equal? (interval-length 5)
+                5))
+
+(: -keep-by-triplet-distance : (Listof AgePathPair) AgePathPair AgePathPair AgePathPair (Setof Path) -> (Setof Path))
+(define (-keep-by-triplet-distance remaining-backup-age-pairs apim1 api apip1 kept-paths)
+  (if (drop-i-in-triplet? (first apim1) (first api) (first apip1))
+      (if (empty? remaining-backup-age-pairs)
+          (set-add (set-add kept-paths (second apip1)) (second apim1))
+          (-keep-by-triplet-distance (drop remaining-backup-age-pairs 1) (car remaining-backup-age-pairs) apim1 apip1 kept-paths))
+      (if (empty? remaining-backup-age-pairs)
+          (set-add (set-add (set-add kept-paths (second apip1)) (second apim1)) (second api))
+          (-keep-by-triplet-distance (drop remaining-backup-age-pairs 1) (car remaining-backup-age-pairs) apim1 api (set-add kept-paths (second apip1))))))
+
+(module+ test #| keep-by-triplet-distance |#
+  (check-equal? (-keep-by-triplet-distance '() `(2 ,b) `(3 ,c) `(4 ,d) (set))
+                (set b c d))
+  (check-equal? (-keep-by-triplet-distance '() `(2 ,b) `(3 ,c) `(4 ,d) (set e f))
+                (set b c d e f))
+  (check-equal? (-keep-by-triplet-distance `((1 ,a) (2 ,b)) `(3 ,c) `(4 ,d) `(5 ,e) (set f))
+                (set a b c d e f))
+  (check-equal? (-keep-by-triplet-distance `((1 ,a)) `(2 ,b) `(3 ,c) `(4 ,d) (set))
+                (set a b c d))
+  (check-equal? (-keep-by-triplet-distance `((1 ,a)) `(5 ,b) `(6 ,c) `(7 ,d) (set))
+                (set a b d))
+  (check-equal? (-keep-by-triplet-distance `((5 ,a)) `(6 ,b) `(7 ,c) `(22 ,d) (set))
+                (set a  c d ))
+  )
+
+(: keep-by-triplet-distance : (Listof AgePathPair) -> (Setof Path))
+;; keep only backups that are relevant for this interval
+(define (keep-by-triplet-distance backup-age-pairs)
+  (define rev-sorted-age-pairs (reverse (sort-by-age backup-age-pairs)))
+  (cond ((> 3 (length backup-age-pairs))
+         (age-path-pairs->paths backup-age-pairs))
+        (else
+         (begin
+           (define apip1 (first rev-sorted-age-pairs))
+           (define api (second rev-sorted-age-pairs))
+           (define apim1 (third rev-sorted-age-pairs))
+           (-keep-by-triplet-distance (drop rev-sorted-age-pairs 3) apim1 api apip1 (set))))))
+
+(module+ test #| keep-by-triplet-distance |#
+  (check-equal? (keep-by-triplet-distance '())
+                (set))
+  (check-equal? (keep-by-triplet-distance `((1 ,a)))
+                (set a))
+  (check-equal? (keep-by-triplet-distance `((1 ,a) (2 ,b)))
+                (set a b))
+  (check-equal? (keep-by-triplet-distance `((1 ,a) (2 ,b) (3 ,c)))
+                (set a b c))
+  (check-equal? (keep-by-triplet-distance `((5 ,a) (6 ,b) (7 ,c) (22 ,d)))
+                (set a  c d )))
+
 (: --keep-because-it-becomes-relevant : (Listof AgePathPair) Nonnegative-Integer (Listof Path) Nonnegative-Integer -> (Listof Path))
 ;; keep because when oldest generation hits fib number, the given hits a fib number, too
 (define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
