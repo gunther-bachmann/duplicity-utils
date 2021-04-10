@@ -17,6 +17,21 @@
 ;; #! nix-shell -i racket -p racket-minimal
 
 
+;; glossary:
+;;   backup                       :: a backup is identified by its age in months and its signature files in the backup
+;;   sigfile alias signature file :: is a unique path to (one element of) the backup
+;;   age                          :: each backup is of a certain age that is, months old from now (or the given reference date)
+;;   interval                     :: an interval (0..) is a time span of 1+ months, that grows in length using fibonacci numbers
+;;                                  I0 = month 0
+;;                                  I1 = month 1
+;;                                  I2 = month 2
+;;                                  I3 = month 3,4
+;;                                  I4 = month 5,6,7
+;;                                  I5 = month 8,9,10,11,12
+;;                                  ...In = (range (quick-fib (+ 1 n)) (- (quick-fib (+ 2 n)) 1))
+;;   interval length              :: is the length of the interval in months, (len In) = (quick-fib n)
+;;   interval coverage            :: an interval is covered iff a backup of age a exists that is within the interval
+
 ;; import gregorian dates with typing
 (require/typed (prefix-in gg: gregor)
   [#:opaque gg:Date gg:date?]
@@ -196,62 +211,6 @@
 (require/typed 'UNTYPED
   [sort-by-age ((Listof AgePathPair) -> (Listof AgePathPair)) ])
 
-(module+ test #| fill gaps |#
-  (check-equal? (--fill-gaps `((2 ,a)(3 ,b)(7 ,c)) 0 '())
-                `((7 ,c) (6 ,b) (5 ,b) (4 ,b) (3 ,b) (2 ,a) (1 ,a) (0 ,a)))
-  (check-equal? (--fill-gaps `((0 ,a)(2 ,b)(7 ,c)) 0 '())
-                `((7 ,c) (6 ,b) (5 ,b) (4 ,b) (3 ,b) (2 ,b) (1 ,a) (0 ,a)))
-  (check-equal? (--fill-gaps `((1 ,a)(5 ,b)(7 ,c)) 0 '())
-                `((7 ,c) (6 ,b) (5 ,b) (4 ,a) (3 ,a) (2 ,a) (1 ,a) (0 ,a)))
-  (check-equal? (--fill-gaps `((2 ,a)(5 ,b)) 0 '())
-                `((5 ,b) (4 ,a) (3 ,a) (2 ,a) (1 ,a) (0 ,a)))
-  (check-equal? (--fill-gaps `((2 ,a)) 0 '())
-                `((2 ,a) (1 ,a) (0 ,a)))
-  (check-equal? (--fill-gaps '() 0 '())
-                '()))
-
-(: --fill-gaps : (Listof AgePathPair) Nonnegative-Integer (Listof AgePathPair) -> (Listof AgePathPair))
-;; fill missing generations (months) in list such that each generation is present exactly once (up to the max)
-(define (--fill-gaps remaining-age-path-pairs n current-result)
-  (cond [(empty? remaining-age-path-pairs)
-         current-result]
-        [(and (= 1 (length remaining-age-path-pairs))
-              (> n (first (first remaining-age-path-pairs))))
-         current-result]
-        [(or (= 1 (length remaining-age-path-pairs))
-             (< n (first (second remaining-age-path-pairs))))
-         (--fill-gaps remaining-age-path-pairs
-                     (add1 n)
-                     (cons `(,n ,(second (first remaining-age-path-pairs))) current-result))]
-        [(>= n (first (second remaining-age-path-pairs)))
-         (--fill-gaps (cdr remaining-age-path-pairs)
-                     (add1 n)
-                     (cons `(,n ,(second (second remaining-age-path-pairs))) current-result))]
-        [else current-result]))
-
-(module+ test #| fill gaps |#
-  (check-equal? (fill-gaps '())
-                '())
-  (check-equal? (fill-gaps `((0 ,valid-path-20200101)))
-                `((0 , valid-path-20200101)))
-  (check-equal? (fill-gaps `((2 ,valid-path-20200101)))
-                `((0 , valid-path-20200101)
-                  (1 , valid-path-20200101)
-                  (2 , valid-path-20200101)))
-  (check-equal? (fill-gaps `((1 ,valid-path-20200514) (4 ,valid-path-20200203) (6 ,valid-path-20200101)))
-                `((0 ,valid-path-20200514)
-                  (1 ,valid-path-20200514)
-                  (2 ,valid-path-20200514)
-                  (3 ,valid-path-20200514)
-                  (4 ,valid-path-20200203)
-                  (5 ,valid-path-20200203)
-                  (6 ,valid-path-20200101))))
-
-(: fill-gaps : (Listof AgePathPair) -> (Listof AgePathPair))
-;; convenience function for --fill-gaps
-(define (fill-gaps sorted-age-path-pairs)
-  (reverse (--fill-gaps sorted-age-path-pairs 0 '())))
-
 (module+ test #| fib |#
   (check-equal? (fib 0) 0)
   (check-equal? (fib 1) 1)
@@ -315,16 +274,6 @@
 ;; keep the oldest path
 (define (keep-oldest _ age-path-pairs)
   (set (cadr (last (sort-by-age age-path-pairs)))))
-
-(: keep-by-age-list : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
-;; keep all paths because generation / age is in list to keep
-(define (keep-by-age-list backup-ages-to-keep _ age-path-pairs)
-  (define filled-age-file-pairs (fill-gaps (sort-by-age age-path-pairs)))
-  (age-path-pairs->paths (filter (curry keep-backup-since-age-is-kept? backup-ages-to-keep) filled-age-file-pairs)))
-
-(module+ test #| keep because it becomes relevant |#
-  (check-equal? (--keep-because-it-becomes-relevant `((1 ,a) (5 ,b) (7 ,c) (15 ,d)) 3 '() 6)
-                `(,c ,d)))
 
 (define golden-ratio (/  (+ 1 (sqrt 5) ) 2))
 
@@ -470,9 +419,9 @@
                 (set a  c d ))
   )
 
-(: keep-by-triplet-distance : (Listof AgePathPair) -> (Setof Path))
+(: keep-by-triplet-distance : (Listof Path) (Listof AgePathPair) -> (Setof Path))
 ;; keep only backups that are relevant for this interval
-(define (keep-by-triplet-distance backup-age-pairs)
+(define (keep-by-triplet-distance _ backup-age-pairs)
   (define rev-sorted-age-pairs (reverse (sort-by-age backup-age-pairs)))
   (cond ((> 3 (length backup-age-pairs))
          (age-path-pairs->paths backup-age-pairs))
@@ -484,56 +433,22 @@
            (-keep-by-triplet-distance (drop rev-sorted-age-pairs 3) apim1 api apip1 (set))))))
 
 (module+ test #| keep-by-triplet-distance |#
-  (check-equal? (keep-by-triplet-distance '())
+  (check-equal? (keep-by-triplet-distance null '())
                 (set))
-  (check-equal? (keep-by-triplet-distance `((1 ,a)))
+  (check-equal? (keep-by-triplet-distance null `((1 ,a)))
                 (set a))
-  (check-equal? (keep-by-triplet-distance `((1 ,a) (2 ,b)))
+  (check-equal? (keep-by-triplet-distance null `((1 ,a) (2 ,b)))
                 (set a b))
-  (check-equal? (keep-by-triplet-distance `((1 ,a) (2 ,b) (3 ,c)))
+  (check-equal? (keep-by-triplet-distance null `((1 ,a) (2 ,b) (3 ,c)))
                 (set a b c))
-  (check-equal? (keep-by-triplet-distance `((5 ,a) (6 ,b) (7 ,c) (22 ,d)))
+  (check-equal? (keep-by-triplet-distance null `((5 ,a) (6 ,b) (7 ,c) (22 ,d)))
                 (set a  c d )))
-
-(: --keep-because-it-becomes-relevant : (Listof AgePathPair) Nonnegative-Integer (Listof Path) Nonnegative-Integer -> (Listof Path))
-;; keep because when oldest generation hits fib number, the given hits a fib number, too
-(define (--keep-because-it-becomes-relevant sorted-age-path-pairs n kept-paths fib-distance)
-  (cond [(= n 0) kept-paths]
-        [else (define age-path-pair (list-ref sorted-age-path-pairs n))
-              (define age           (first age-path-pair))
-              (--keep-because-it-becomes-relevant
-               sorted-age-path-pairs
-               (sub1 n)
-               (if (set-member? fib-backup-ages-to-keep (+ age fib-distance))
-                   (cons (cadr age-path-pair) kept-paths)
-                   kept-paths)
-               fib-distance)]))
-
-(module+ test #| keep because it becomes relevant |#
-  (check-equal? (keep-because-it-becomes-relevant fib-backup-ages-to-keep (list a b c d) `((1 ,a) (5 ,b) (7 ,c) (15 ,d)))
-                (set a c d)))
-
-(: keep-because-it-becomes-relevant : (Setof Nonnegative-Integer) (Listof Path) (Listof AgePathPair) -> (Setof Path))
-;; sugar for --keep-because-it-becomes-relevant
-(define (keep-because-it-becomes-relevant backup-ages-to-keep all-paths age-path-pairs)
-  (define sorted-age-path-pairs     (fill-gaps (sort-by-age age-path-pairs)))
-  (define oldest-age                (first (last sorted-age-path-pairs)))
-  (define min-fib-older-than-oldest (next-age-ge oldest-age backup-ages-to-keep))
-  (define n (length sorted-age-path-pairs))
-  (cond [(> 1 n) (error "age-path-pairs must not be empty" age-path-pairs)]
-        [else
-         (list->set (--keep-because-it-becomes-relevant sorted-age-path-pairs
-                                                      (sub1 n)
-                                                      '()
-                                                      (- min-fib-older-than-oldest oldest-age)))]))
 
 (: backup-keep-functions (Listof KeepFunction))
 ;; list of predicates to apply when selecting full backups to keep
 (define backup-keep-functions
   (list (curry keep-first-n 4)
-        keep-oldest
-        (curry keep-by-age-list fib-backup-ages-to-keep)
-        (curry keep-because-it-becomes-relevant fib-backup-ages-to-keep)))
+        keep-by-triplet-distance))
 
 (module+ test #| keep paths |#
   (check-equal? (--kept-paths '() '() (set) '())
@@ -559,34 +474,7 @@
                                (5 ,valid-path-20200514))
                              (set)
                              (list (curry keep-first-n 4)))
-                (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200502))
-  (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
-                             `((1 ,valid-path-20200101)
-                               (2 ,valid-path-20200201)
-                               (3 ,valid-path-20200203)
-                               (4 ,valid-path-20200502)
-                               (5 ,valid-path-20200514))
-                             (set)
-                             (list (curry  keep-by-age-list fib-backup-ages-to-keep)))
-                (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200514))
-  (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
-                             `((1 ,valid-path-20200101)
-                               (2 ,valid-path-20200201)
-                               (3 ,valid-path-20200203)
-                               (4 ,valid-path-20200502)
-                               (5 ,valid-path-20200514))
-                             (set)
-                             (list (curry keep-because-it-becomes-relevant fib-backup-ages-to-keep)))
-                (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200514))
-  (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
-                             `((1 ,valid-path-20200101)
-                               (2 ,valid-path-20200201)
-                               (3 ,valid-path-20200203)
-                               (4 ,valid-path-20200502)
-                               (7 ,valid-path-20200514))
-                             (set)
-                             (list (curry keep-because-it-becomes-relevant fib-backup-ages-to-keep)))
-                (set valid-path-20200101 valid-path-20200201 valid-path-20200502 valid-path-20200514)))
+                (set valid-path-20200101 valid-path-20200201 valid-path-20200203 valid-path-20200502)))
 
 (: --kept-paths : (Listof Path) (Listof AgePathPair) (Setof Path) (Listof KeepFunction) -> (Setof Path))
 ;; apply keep functions to reduce the list of available backups
@@ -603,41 +491,40 @@
 (module+ test #| keep paths |#
   (check-equal? (kept-paths (list a b c d e f g)
                             `((0 ,a) (1 ,b) (2 ,c) (3 ,d) (4 ,e) (5 ,f) (6 ,g)))
-                (set a b c d f g)) ;; dropped e
+                (set a b c d e g)) ;; dropped f
   (check-equal? (kept-paths (list a b c d f g)
                             `((0 ,a) (1 ,a) (2 ,a) (3 ,b) (4 ,c) (5 ,c) (6 ,c) (7 ,d) (8 ,e) (9 ,f) (10 ,f) (11 ,f) (12 ,g)))
                 (set a b c d e g))
   (check-equal? (kept-paths (list a b c d e g)
                             `((0 ,a) (1 ,a) (2 ,a) (3 ,b) (4 ,c) (5 ,c) (6 ,c) (7 ,d) (8 ,e) (9 ,f) (10 ,f) (11 ,f) (12 ,g) (13 ,g) (14 ,g) (15 ,h)))
-                (set a b c d e g h))
+                (set a b c d f h))
   (check-equal? (kept-paths (list a b c d e g h)
-                            (fill-gaps `((2 ,a) (3 ,b) (4 ,c)  (7 ,d) (8 ,e)  (9 ,f)  (12 ,g) (15 ,h))))
+                            `((2 ,a) (3 ,b) (4 ,c)  (7 ,d) (8 ,e)  (9 ,f)  (12 ,g) (15 ,h)))
                 (set a b c d e g h))
-
   (check-equal? (kept-paths (list l m n o p r u z)
-                            (fill-gaps `((0 ,l) (1 ,m) (2 ,n) (3 ,o) (4 ,p) (6 ,r) (9 ,u) (14 ,z))))
+                            `((0 ,l) (1 ,m) (2 ,n) (3 ,o) (4 ,p) (6 ,r) (9 ,u) (14 ,z)))
                 (set l m n o p r u z)) ;; drop none
   (check-equal? (kept-paths (list k l m n o p r u z)
-                            (fill-gaps `((0 ,k) (1 ,l) (2 ,m) (3 ,n) (4 ,o) (5 ,p) (7 ,r) (10 ,u) (15 ,z))))
-                (set k l m n p r u z)) ;; drop o
+                            `((0 ,k) (1 ,l) (2 ,m) (3 ,n) (4 ,o) (5 ,p) (7 ,r) (10 ,u) (15 ,z)))
+                (set k l m n o p r u z)) ;; drop none
   (check-equal? (kept-paths (list j k l m n p r u z)
-                            (fill-gaps `((0 ,j) (1 ,k) (2 ,l) (3 ,m) (4 ,n) (6 ,p) (8 ,r) (11 ,u) (16 ,z))))
-                (set j k l m n r u z)) ;; drop p
+                            `((0 ,j) (1 ,k) (2 ,l) (3 ,m) (4 ,n) (6 ,p) (8 ,r) (11 ,u) (16 ,z)))
+                (set j k l m n p r u z)) ;; drop u
   (check-equal? (kept-paths (list i j k l m n r u z)
-                            (fill-gaps `((0 ,i) (1 ,j) (2 ,k) (3 ,l) (4 ,m) (5 ,n) (9 ,r) (12 ,u) (17 ,z))))
+                            `((0 ,i) (1 ,j) (2 ,k) (3 ,l) (4 ,m) (5 ,n) (9 ,r) (12 ,u) (17 ,z)))
                 (set i j k l m n r u z)) ;; drop none
   [check-equal? (kept-paths (list h i j k l m n r u z)
-                            (fill-gaps `((0 ,h) (1 ,i) (2 ,j) (3 ,k) (4 ,l) (5 ,m) (6 ,n) (10 ,r) (13 ,u) (18 ,z))))
-                (set h i j k m n r u z)] ;; drop l
+                            `((0 ,h) (1 ,i) (2 ,j) (3 ,k) (4 ,l) (5 ,m) (6 ,n) (10 ,r) (13 ,u) (18 ,z)))
+                (set h i j k l n r u z)] ;; drop m
   (check-equal? (kept-paths (list g h i j k m n r u z)
-                            (fill-gaps `((0 ,g) (1 ,h) (2 ,i) (3 ,j) (4 ,k) (6 ,m) (7 ,n) (11 ,r) (14 ,u) (19 ,z))))
-                (set g h i j k m n r z)) ;; drop u
+                            `((0 ,g) (1 ,h) (2 ,i) (3 ,j) (4 ,k) (6 ,m) (7 ,n) (11 ,r) (14 ,u) (19 ,z)))
+                (set g h i j k m n r u z)) ;; drop none
   (check-equal? (kept-paths (list f g h i j k m n r z)
-                            (fill-gaps `((0 ,f) (1 ,g) (2 ,h) (3 ,i) (4 ,j) (5 ,k) (7 ,m) (8 ,n) (12 ,r)(20 ,z))))
+                            `((0 ,f) (1 ,g) (2 ,h) (3 ,i) (4 ,j) (5 ,k) (7 ,m) (8 ,n) (12 ,r)(20 ,z)))
                 (set f g h i j k m n r z)) ;; drop none
   (check-equal? (kept-paths (list e f g h i j k m n r z)
-                            (fill-gaps `((0 ,e) (1 ,f) (2 ,g) (3 ,h) (4 ,i) (5 ,j) (6 ,k) (8 ,m) (9 ,n) (13 ,r)(21 ,z))))
-                (set e f g h j m r z))  ;; drop i, k, n
+                            `((0 ,e) (1 ,f) (2 ,g) (3 ,h) (4 ,i) (5 ,j) (6 ,k) (8 ,m) (9 ,n) (13 ,r)(21 ,z)))
+                (set e f g h i k n r z))  ;; drop j, m
   )
 
 (: kept-paths : (Listof Path) (Listof AgePathPair) -> (Setof Path))
@@ -878,36 +765,26 @@
 (define (--validated-intervals sorted-ages result)
   (cond [(empty? sorted-ages)
          result]
-        [(= 1 (length sorted-ages))
-         (set-add result (next-age-ge (car sorted-ages) fib-backup-ages-to-keep))]
-        [else
-         (define backup-n (first sorted-ages))
-         (define backup-o (second sorted-ages))
-         (define backup-n-ni (next-age-ge backup-n fib-backup-ages-to-keep))
-         (define backup-o-ni (next-age-ge backup-o fib-backup-ages-to-keep))
-         (define new-result (if (>= (- backup-o-ni backup-n-ni)
-                                   (- backup-o backup-n))
-                                (set-add result backup-n-ni)
-                                result))
-         (--validated-intervals (cdr sorted-ages) new-result)]))
+        [else (--validated-intervals (drop sorted-ages 1) (set-add result (interval-num-of (first sorted-ages))))]))
 
 (module+ test #| validated-intervals |#
   (check-equal? (validated-intervals '(0 1 2 3 4 5 6 7 8 9 10))
-                (set 0 1 2 3 5 8 13))
+                (set 0 1 2 3 4 5))
   (check-equal? (validated-intervals '(0 1 2 3 5 8 13))
-                (set 0 1 2 3 5 8 13))
+                (set 0 1 2 3 4 5 6))
   (check-equal? (validated-intervals '())
                 (set))
   (check-equal? (validated-intervals '(0 10))
-                (set 0 13))
-  (check-equal? (validated-intervals '(0 4))
                 (set 0 5))
-  (check-equal? (validated-intervals '(0 3 4 8)) ;; 4 does not cover interval 4-5, since between 4 and 8 is a larger distance, than it should be (should be max: 3 [8-5])
-                (set 0 3 8))
+  (check-equal? (validated-intervals '(0 4))
+                (set 0 3))
+  (check-equal? (validated-intervals '(0 3 4 8))
+                (set 0 3 5))
   (check-equal? (validated-intervals '(0 3 5 7))
-                (set 0 3 5 8))
-  (check-equal? (validated-intervals '(0 3 5 7 13)) ;; 7 does not cover interval 6-8, since between 7 and 13 is a larger dinstance, than it should be (should be max 5 [13-8])
-                (set 0 3 5 13)))
+                (set 0 3 4))
+  (check-equal? (validated-intervals '(0 3 5 7 13))
+                (set 0 3 4 6))
+  )
 
 (: validated-intervals : (Listof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
 ;; get the valid/satisfied intervalls by fib-numbers of the given backup ages, taking distances between backups into account
@@ -917,7 +794,6 @@
 (: get-validated-intervals (((Listof Path)) (Date) . ->* . (Setof Nonnegative-Integer)))
 ;; classify sig files of full backups into 'keep or 'discard
 (define (get-validated-intervals sigfiles [reference-date (gg:now)])
-  (define sorted-sigfiles (sort sigfiles path>?))
   (define age-file-pairs  (sort-by-age (unique-ages-path-pairs (pair-with-age sigfiles reference-date))))
   (define ages            (age-path-pairs->ages age-file-pairs))
   (validated-intervals ages))
@@ -930,26 +806,25 @@
   (check-equal? (unsatisfied-intervals '())
                 (set))
   (check-equal? (unsatisfied-intervals '(0 10))
-                (set 1 2 3 5 8))
+                (set 1 2 3 4))
   (check-equal? (unsatisfied-intervals '(0 4))
-                (set 1 2 3))
-  (check-equal? (unsatisfied-intervals '(0 3 4 8)) ;; 4 does not cover interval 4-5, since between 4 and 8 is a larger distance, than it should be (should be max: 3 [8-5])
-                (set 1 2 5))
+                (set 1 2))
+  (check-equal? (unsatisfied-intervals '(0 3 4 8))
+                (set 1 2 4))
   (check-equal? (unsatisfied-intervals '(0 3 5 7))
                 (set 1 2))
-  (check-equal? (unsatisfied-intervals '(0 3 5 7 13)) ;; 7 does not cover interval 6-8, since between 7 and 13 is a larger dinstance, than it should be (should be max 5 [13-8])
-                (set 1 2 8)))
+  (check-equal? (unsatisfied-intervals '(0 3 5 7 13))
+                (set 1 2 5)))
 
 (: unsatisfied-intervals : (Listof Nonnegative-Integer) -> (Setof Nonnegative-Integer))
-;; return the fib-numbers of the intervals that are not satisfied by the given backup ages, taking distances between backups into account
+;; return the intervals that are not satisfied by the given backup ages, taking distances between backups into account
 (define (unsatisfied-intervals sorted-ages)
   (cond [(empty? sorted-ages)
          (set)]
         [else
          (define valid-intervals (validated-intervals sorted-ages))
          (define max-interval (apply max (set->list valid-intervals)))
-         (set-filter (set-subtract fib-backup-ages-to-keep (validated-intervals sorted-ages))
-                     (lambda ([n : Nonnegative-Integer]) (<= n max-interval)))]))
+         (set-subtract (list->set (range max-interval)) (validated-intervals sorted-ages))]))
 
 (: --set-filter (All (A) (-> (Setof A) (Setof A) (-> A Boolean) (Setof A))))
 (define (--set-filter unfiltered-set filtered-set predicate)
