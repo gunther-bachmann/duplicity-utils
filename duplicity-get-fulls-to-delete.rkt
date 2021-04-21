@@ -75,6 +75,44 @@
   (check-equal? (hash-ref (process-config-line "backup-folder: /some/path/to/backup" (hash)) 'backup-folder)
                 "/some/path/to/backup"))
 
+(: filter-config-lines : (Listof String) String -> (Listof String))
+(define (filter-config-lines lines profile)
+  (define at-profile (dropf lines (lambda ([line : String]) (not (equal? (format "[~a]" profile) (string-trim line))))))
+  (if (empty? at-profile)
+      '()
+      (takef (drop at-profile 1) (lambda ([line : String]) (not (string-prefix? line "[")) ))))
+
+(module+ test #| filter-config-lines |#
+  (check-equal? (filter-config-lines '() "profile")
+                '())
+  (check-equal? (filter-config-lines '("line 1"
+                                       "line 2"
+                                       "# comment"
+                                       "[profile]"
+                                       "relevant line"
+                                       "[next profile]"
+                                       "irrelevant line")
+                                     "unknown profile")
+                '())
+  (check-equal? (filter-config-lines '("line 1"
+                                       "line 2"
+                                       "# comment"
+                                       "[profile]"
+                                       "relevant line"
+                                       "[next profile]"
+                                       "irrelevant line")
+                                     "profile")
+                '("relevant line"))
+    (check-equal? (filter-config-lines '("line 1"
+                                       "line 2"
+                                       "# comment"
+                                       "[profile]"
+                                       "irrelevant line"
+                                       "[next profile]"
+                                       "relevant line")
+                                     "next profile")
+                '("relevant line")))
+
 (: process-config-line : String Configuration -> Configuration)
 ;; process one configuration line and return enriched configuration
 (define (process-config-line line configuration)
@@ -91,15 +129,20 @@
 (define empty-config-hash : Configuration (hash))
 
 (module+ test #| read configuration |#
-  (check-equal? (read-configuration '("backup-folder: some/folder" "# some comment" "unknown-prefix: ignored"))
+  (check-equal? (read-configuration '("[profile]"
+                                      "backup-folder: some/folder"
+                                      "# some comment"
+                                      "unknown-prefix: ignored")
+                                    "profile")
                 (hash 'backup-folder "some/folder")))
 
-(: read-configuration : (Listof String) -> Configuration)
+(: read-configuration : (Listof String) String -> Configuration)
 ;; duplicity configuration
-(define (read-configuration file-lines)
-  (foldl (lambda ([arg : String] [acc : Configuration]) (process-config-line arg acc))
+(define (read-configuration file-lines profile)
+  (foldl (lambda ([arg : String] [acc : Configuration])
+           (process-config-line arg acc))
          empty-config-hash
-         file-lines))
+         (filter-config-lines file-lines profile)))
 
 (module+ test #| setup test data |#
   (require typed/rackunit)
@@ -850,13 +893,14 @@
 ;; simple check and print of current kept and discarded backups (no actual actions taken)
 (define (check-backups)
   (printf "locating configuration\n")
-  (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config"))))
+  (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config")) "default"))
   (define backup-dir (hash-ref config 'backup-folder))
   (cond [(directory-exists? backup-dir)
          (printf "dir ~s exists\n" backup-dir)
          (define full-backup-files   (directory-list backup-dir))
          (printf "read full backup list\n")
          (define full-sig-files      (filter matched-backup-file full-backup-files))
+         (printf "sigfiles: ~a\n" full-sig-files)
          (printf "read signature files\n")
          (define classified-sigfiles (classify-sigfiles full-sig-files))
          (printf "classified signature files\n")
