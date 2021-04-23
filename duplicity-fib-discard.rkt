@@ -3,13 +3,8 @@
 
 ;; find out which months/generation/age can be deleted from backup given the following:
 ;; - full backups are done monthly, incrementals sub monthly
-;; - keep a number (4) of most recent full
-;; - keep the oldest
-;; - keep all with a months age matching a fibonacci number
-;; - keep those that will (in time) have a months age matching a fibonacci number,
-;;   when the oldest backup matches a fibonacci number
-;; - a backup is associated with a generation/age if there is no backup older than this one
-;;   that is less or equal to that number
+;; - given three backups b_i-1, b_i, b_i+1, with two of them covering an interval iv_n, b_i is dropped,
+;;   iff b_i+1 - b_i-1 < fib(n)
 
 ;; automatic installation of racket packages is problematic:
 ;; problem is that no racket packages can be installed into the racket-minimal installation used by shell-nix
@@ -18,18 +13,18 @@
 
 
 ;; glossary:
-;;   backup                       :: a backup is identified by its age in months and its signature files in the backup
-;;   sigfile alias signature file :: is a unique path to (one element of) the backup
+;;   backup                       :: a backup (b_i = age) is identified by its age in months and its signature files in the backup
+;;   sigfile alias signature file :: is a unique path to (one element of) the monthly full backup
 ;;   age                          :: each backup is of a certain age that is, months old from now (or the given reference date)
 ;;   interval                     :: an interval (0..) is a time span of 1+ months, that grows in length using fibonacci numbers
-;;                                  I0 = month 0
-;;                                  I1 = month 1
-;;                                  I2 = month 2
-;;                                  I3 = month 3,4
-;;                                  I4 = month 5,6,7
-;;                                  I5 = month 8,9,10,11,12
+;;                                  iv_0 = month 0
+;;                                  iv_1 = month 1
+;;                                  iv_2 = month 2
+;;                                  iv_3 = month 3,4
+;;                                  iv_4 = month 5,6,7
+;;                                  iv_5 = month 8,9,10,11,12
 ;;                                  ...In = (range (quick-fib (+ 1 n)) (- (quick-fib (+ 2 n)) 1))
-;;   interval length              :: is the length of the interval in months, (len In) = (quick-fib n)
+;;   interval length              :: is the length of the interval in months, (len iv_n) = (quick-fib n)
 ;;   interval coverage            :: an interval is covered iff a backup of age a exists that is within the interval
 
 ;; import gregorian dates with typing
@@ -82,6 +77,7 @@
                 "/some/path/to/backup"))
 
 (: filter-config-lines : (Listof String) String -> (Listof String))
+;; get lines of this profile only
 (define (filter-config-lines lines profile)
   (define at-profile (dropf lines (lambda ([line : String]) (not (equal? (format "[~a]" profile) (string-trim line))))))
   (if (empty? at-profile)
@@ -268,24 +264,11 @@
   (check-equal? (fib 10) 55))
 
 (: fib : Nonnegative-Integer -> Nonnegative-Integer)
+;; recursive calc fibonacci number
 (define (fib n)
   (cond [(= n 0) 0]
         [(<= n 2) 1]
         [else (+ (fib (- n 1)) (fib (- n 2)))]))
-
-(module+ test #| fib backup ages to keep |#
-  (check-true (set-member? fib-backup-ages-to-keep (fib 10)))
-  (check-true (set-member? fib-backup-ages-to-keep 0))
-  (check-false (set-member? fib-backup-ages-to-keep (- (fib 10) 1))))
-
-(: fib-backup-ages-to-keep (Setof Nonnegative-Integer))
-;; set of ages / generations perspectively kept
-(define fib-backup-ages-to-keep (list->set (map fib (range 0 15))))
-
-(: keep-backup-since-age-is-kept? : (Setof Nonnegative-Integer) AgePathPair -> Boolean)
-;; kept because of age / generation
-(define (keep-backup-since-age-is-kept? backup-ages-to-keep age-backup-pair)
-  (set-member? backup-ages-to-keep (first age-backup-pair)))
 
 (module+ test #| age path pairs -> paths |#
   (check-equal? (age-path-pairs->paths `((0 ,a) (1 ,a) (2 ,b) (3 ,b) (4 ,c)))
@@ -297,32 +280,12 @@
   (list->set (map (lambda ([pair : AgePathPair]) (second pair))
                  age-path-pairs)))
 
-(module+ test #| next age ge |#
-  (check-equal? (next-age-ge 3 (set 1 2 7 9)) 7)
-  (check-equal? (next-age-ge 3 (set 1 2 4 9)) 4)
-  (check-equal? (next-age-ge 3 (set 1 3 9)) 3)
-  (check-equal? (next-age-ge 10 (set 1 3 9)) 10))
-
-(: next-age-ge (([age : Nonnegative-Integer] [_ : (Setof Nonnegative-Integer)])
-                . -> . (Refine [next-age : Nonnegative-Integer] (>= next-age age))))
-;; get next age greater or equal within the list of backup ages to keep
-(define (next-age-ge age backup-ages-to-keep)
-  (define all-ge (filter (lambda ([fnum : Nonnegative-Integer]) (>= fnum age)) (set->list backup-ages-to-keep)))
-  (define asc-sorted-ages (sort all-ge <))
-  (define first-ge (if (empty? asc-sorted-ages) age (first asc-sorted-ages)))
-  (if (>= first-ge age) first-ge age))
-
 (define-type KeepFunction ((Listof Path) (Listof AgePathPair) -> (Setof Path)))
 
 (: keep-first-n : Nonnegative-Integer (Listof Path) (Listof AgePathPair) -> (Setof Path))
 ;; keep the first n paths from the given list of age path pairs
 (define (keep-first-n n all-paths _)
   (list->set (take all-paths (min (length all-paths) n))))
-
-(: keep-oldest : (Listof Path) (Listof AgePathPair) -> (Setof Path))
-;; keep the oldest path
-(define (keep-oldest _ age-path-pairs)
-  (set (cadr (last (sort-by-age age-path-pairs)))))
 
 (define golden-ratio (/  (+ 1 (sqrt 5) ) 2))
 
@@ -444,6 +407,12 @@
                 5))
 
 (: -keep-by-triplet-distance : (Listof AgePathPair) AgePathPair AgePathPair AgePathPair (Setof Path) -> (Setof Path))
+;; if api of the triplet can be deleted,
+;;  (a) if there are remaining backups to fill up the triplet, take the next one off the remaining list and call recursively
+;;  (b) if there is no remain backup, put apip1 and apim1 onto the kept paths and return
+;; if api of the triplet CANNOT be deleted
+;;  (a) if there are remaining backups to fill up the triplet, put aip1 into the list of kept paths, take the next one off the remaining list and call recursively
+;;  (b) if there is no remaining backup, put apip1 api and apim1 onto the kept paths and return
 (define (-keep-by-triplet-distance remaining-backup-age-pairs apim1 api apip1 kept-paths)
   (if (drop-i-in-triplet? (first apim1) (first api) (first apip1))
       (if (empty? remaining-backup-age-pairs)
@@ -469,7 +438,7 @@
   )
 
 (: keep-by-triplet-distance : (Listof Path) (Listof AgePathPair) -> (Setof Path))
-;; keep only backups that are relevant for this interval
+;; keep only backups that are relevant for this interval set
 (define (keep-by-triplet-distance _ backup-age-pairs)
   (define rev-sorted-age-pairs (reverse (sort-by-age backup-age-pairs)))
   (cond ((> 3 (length backup-age-pairs))
@@ -507,14 +476,6 @@
                              (set)
                              backup-keep-functions)
                 (set valid-path-20200101))
-  (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502)
-                             `((1 ,valid-path-20200101)
-                               (2 ,valid-path-20200201)
-                               (3 ,valid-path-20200203)
-                               (4 ,valid-path-20200502))
-                             (set)
-                             (list keep-oldest))
-                (set valid-path-20200502))
   (check-equal? (--kept-paths `(,valid-path-20200101 ,valid-path-20200201 ,valid-path-20200203 ,valid-path-20200502, valid-path-20200514)
                              `((1 ,valid-path-20200101)
                                (2 ,valid-path-20200201)
@@ -876,6 +837,7 @@
          (set-subtract (list->set (range max-interval)) (validated-intervals sorted-ages))]))
 
 (: --set-filter (All (A) (-> (Setof A) (Setof A) (-> A Boolean) (Setof A))))
+;; filter the unfiltered set by the predicate, filling the filtered-set with elements that satisfy the predicate
 (define (--set-filter unfiltered-set filtered-set predicate)
   (cond [(set-empty? unfiltered-set)
          filtered-set]
@@ -897,6 +859,7 @@
   (--set-filter unfiltered-set (set-subtract unfiltered-set unfiltered-set) predicate))
 
 (: file-sizes : (Listof Path) String -> Integer)
+;; sum of the file sizes of the given list of file paths
 (define (file-sizes files backup-dir)
   (foldl +  0 (map (lambda ([path : Path])
                      (when (path? path)
@@ -904,6 +867,7 @@
                        (file-size str))) files)))
 
 (: bytes->string : Integer -> String)
+;; transform number of bytes into human readable string
 (define (bytes->string bytes)
   (cond [(<= bytes 1024) (format "~a Bytes" bytes)]
         [(<= bytes (expt 1024 2)) (format "≈ ~a kB" (arithmetic-shift bytes -10))]
@@ -973,6 +937,7 @@
          (log-msg 1 (format "dir ~s does not exist" backup-dir))]))
 
 (: string->loglevel : String -> Nonnegative-Integer)
+;; transform string to the log level number
 (define (string->loglevel str)
   (define num (exact-floor (real-part (or (string->number str) 3))))
   (if (nonnegative-integer? num)
@@ -980,15 +945,17 @@
     3))
 
 (: log-level<= : Integer -> Boolean)
+;; is the given log level is greater or equal the configured log level?
 (define (log-level<= level)
   (<= (cl-verbosity) level))
 
 (: log-level>= : Integer -> Boolean)
+;; is the given log level less or equal to the configured log level?
 (define (log-level>= level)
   (>= (cl-verbosity) level))
 
-;; (check-backups "default")
 (: log-msg : Integer String -> Void)
+;; log the given string if the level should be logged
 (define (log-msg level message)
   (when (log-level>= level)
     (for-each (lambda (line)
