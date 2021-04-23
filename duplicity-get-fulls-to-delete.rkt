@@ -39,13 +39,19 @@
   [gg:parse-date (String String -> gg:Date)]
   [gg:date=? ((U gg:Date gg:Datetime) (U gg:Date gg:Datetime) -> Boolean)]
   [gg:date ((Integer) (Integer Integer) . ->* . gg:Date)]
-  [gg:now (-> gg:Datetime)])
+  [gg:now (-> gg:Datetime)]
+  [gg:current-posix-seconds (-> Real)])
 
 ;; import gregorian periods with typing
 (require/typed (prefix-in gg: gregor/period)
   [#:opaque Period gg:period?]
   [gg:period-between (Date Date (Listof Symbol) -> Period)]
   [gg:period-ref (Period Symbol -> Integer)])
+
+(require racket/cmdline)
+(require/typed ansi-color
+  [with-colors ((U Symbol String) (U Symbol String) (-> Void) -> Void)]
+  [background-color (-> String)])
 
 ;; treat Date and Datetime uniformly herein
 (define-type Date (U gg:Date gg:Datetime))
@@ -890,20 +896,41 @@
 (define (set-filter unfiltered-set predicate)
   (--set-filter unfiltered-set (set-subtract unfiltered-set unfiltered-set) predicate))
 
+(: file-sizes : (Listof Path) String -> Integer)
+(define (file-sizes files backup-dir)
+  (foldl +  0 (map (lambda ([path : Path])
+                     (when (path? path)
+                       (define str (path->string (build-path backup-dir path)))
+                       (file-size str))) files)))
+
+(: bytes->string : Integer -> String)
+(define (bytes->string bytes)
+  (cond [(<= bytes 1024) (format "~a Bytes" bytes)]
+        [(<= bytes (expt 1024 2)) (format "≈ ~a kB" (arithmetic-shift bytes -10))]
+        [(<= bytes (expt 1024 3)) (format "≈ ~a MB" (arithmetic-shift bytes -20))]
+        [(<= bytes (expt 1024 4)) (format "≈ ~a GB" (arithmetic-shift bytes -30))]
+        [(<= bytes (expt 1024 5)) (format "≈ ~a TB" (arithmetic-shift bytes -40))]
+        [else "very large"]))
+
+(: check-backups : String -> Void)
 ;; simple check and print of current kept and discarded backups (no actual actions taken)
-(define (check-backups)
-  (printf "locating configuration\n")
-  (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config")) "default"))
+(define (check-backups profile)
+  (unless (string=? (cl-force) "true")
+    (log-msg 0 "dry-run\ndeleting nothing (use --force to actually delete if appropriate)"))
+  (log-msg 5 "locating configuration")
+  (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config")) profile))
+  (log-msg 2 (format "using configuration profile ~a" profile))
   (define backup-dir (hash-ref config 'backup-folder))
+  (log-msg 0 (format "processing backup in ~a" backup-dir))
   (cond [(directory-exists? backup-dir)
-         (printf "dir ~s exists\n" backup-dir)
+         (log-msg 6 (format "dir ~s exists" backup-dir))
          (define full-backup-files   (directory-list backup-dir))
-         (printf "read full backup list\n")
+         (log-msg 6 "read full backup list")
          (define full-sig-files      (filter matched-backup-file full-backup-files))
-         (printf "sigfiles: ~a\n" full-sig-files)
-         (printf "read signature files\n")
+         (log-msg 5 (format "sigfiles: ~a" full-sig-files))
+         (log-msg 6 "read signature files")
          (define classified-sigfiles (classify-sigfiles full-sig-files))
-         (printf "classified signature files\n")
+         (log-msg 6 "classified signature files")
          (define sec-dump            (hash-ref config 'temp-folder))
          (define discarded-dep-files (map (lambda ([path : Path])
                                             (get-chains-related-to path full-backup-files))
@@ -911,33 +938,99 @@
          (define discarded-full-files (map (lambda ([path : Path])
                                              (get-full-related-to path full-backup-files))
                                            (set->list (hash-ref classified-sigfiles 'discard))))
-         (printf "\ncollected complete list of files to discard\n")
+         (log-msg 6 "collected complete list of files to discard")
          (define intervals           (get-validated-intervals full-sig-files))
-         (printf "calculated validated intervals before deletion\n")
+         (log-msg 5 (format "calculated validated intervals before deletion"))
          (define intervals-after     (get-validated-intervals (set->list (hash-ref classified-sigfiles 'keep))))
-         (printf "validated intervals ~s\n" intervals)
-         (printf "validated intervals heeding deletion ~s\n" intervals-after)
-         (printf "keep ~s\n" (hash-ref classified-sigfiles 'keep))
-         (printf "discard ~s\n" (hash-ref classified-sigfiles 'discard))
-         (printf "discard along with sigfile, dependend files: ~a\n" (+ (length (flatten discarded-full-files)) (length (flatten discarded-dep-files))))
+         (log-msg 3 (format "validated interval(s) ~s" intervals))
+         (log-msg 3 (format "validated interval(s) upon removal ~s" intervals-after))
+         (log-msg 4 (format "keep ~s" (hash-ref classified-sigfiles 'keep)))
+         (log-msg 3 (format "keeping ~a full backup(s)" (set-count (hash-ref classified-sigfiles 'keep))))
+         (log-msg 4 (format "discard ~s" (hash-ref classified-sigfiles 'discard)))
+         (log-msg 0 (format "discarding ~a full backup(s)" (set-count (hash-ref classified-sigfiles 'discard))))
+         (define all-files-to-discard (append (flatten discarded-full-files) (flatten discarded-dep-files)))
+         (log-msg 6 (format "discard along with sigfile, dependend files: ~a" (length all-files-to-discard)))
+         (define size-to-discard (file-sizes (cast all-files-to-discard (Listof Path)) backup-dir))
+         (log-msg 0 (format "discarding size ~a" (bytes->string size-to-discard)))
          (cond [(and (set=? intervals intervals-after)
                      (not (set-empty? (hash-ref classified-sigfiles 'discard))))
-                (printf "Discarding superfluous backups ...\n")
+                (log-msg 0 "discarding superfluous backups ...")
                 (for-each (lambda ([path : Any])
                             (when (path? path)
                               (begin
-                                (printf "moving discarded file ~s to ~s\n" (path->string path) sec-dump)
-                                (rename-file-or-directory (build-path backup-dir path) (build-path sec-dump path))
-                                )))
-                          (append (flatten discarded-full-files) (flatten discarded-dep-files)))]
+                                (log-msg 5 (format "moving discarded file ~s to ~s" (path->string path) sec-dump))
+                                (when (and (log-level<= 4)
+                                         (log-level>= 1))
+                                  (write-rotating-bar))
+                                (when (string=? "true" (cl-force))
+                                  (rename-file-or-directory (build-path backup-dir path) (build-path sec-dump path))))))
+                          all-files-to-discard)]
                [(not (set=? intervals intervals-after))
-                (printf "WARNING: Not doing anything, since interval would be incomplete.\n")]
+                (log-msg 0 "WARNING: not doing anything, since interval would be incomplete.")]
                [else
-                (printf "Found nothing to discard.")])]
+                (log-msg 0 "nothing discarded")])]
         [else
-         (printf "dir ~s does not exist\n" backup-dir)]))
+         (log-msg 0 (format "dir ~s does not exist" backup-dir))]))
 
-;; (check-backups)
+(: string->integer : String -> Real)
+(define (string->integer str)
+  (define num (string->number str))
+  (if (real? num)
+      num
+      0))
 
-;; (printf "Given arguments: ~s\n"
-;;         (current-command-line-arguments))
+(: log-level<= : Integer -> Boolean)
+(define (log-level<= level)
+  (<= (string->integer (cl-verbosity)) level))
+
+(: log-level>= : Integer -> Boolean)
+(define (log-level>= level)
+  (>= (string->integer (cl-verbosity)) level))
+
+;; (check-backups "default")
+(: log-msg : Integer String -> Void)
+(define (log-msg level message)
+  (when (log-level>= level)
+    (for-each (lambda (line)
+                (when (string=? "true" (cl-show-log-levels))
+                  (with-colors (background-color) 'blue
+                    (lambda () (printf (format "L~a: " level)))))
+                (printf (format "~a\n" line)))
+              (string-split message "\n"))))
+
+(define rotating-bar-index 0)
+(define rotating-bar-strings  ".oO0Oo") ;; "|/-\\"
+(: rotating-bar-last-output Real)
+(define rotating-bar-last-output #i1)
+(define (write-rotating-bar)
+  (define now (exact->inexact (gg:current-posix-seconds)))
+  (when (<= 1 (- now rotating-bar-last-output))
+    (printf (format "~a" (string-ref rotating-bar-strings rotating-bar-index)))
+    (flush-output)
+    (printf "\033[1D")
+    (set! rotating-bar-last-output now)
+    (set! rotating-bar-index (remainder (add1 rotating-bar-index) (string-length rotating-bar-strings)))))
+
+(define cl-profile (make-parameter "default"))
+(define cl-verbosity (make-parameter "3" ))
+(define cl-force (make-parameter "false"))
+(define cl-show-log-levels (make-parameter "false"))
+
+(command-line
+ #:once-each
+ [("-p" "--profile")
+  profile "select a backup profile for configuration"
+  (cl-profile (if (string? profile) profile "default"))]
+ [("-l" "--show-log-level")
+  "show log level before message"
+  (cl-show-log-levels "true")]
+ [("-v" "--verbose" "--verbosity")
+  verbosity "number 0..9 of verbosity"
+  (cl-verbosity (if (string? verbosity) verbosity "3"))]
+ [("-f" "--force")
+  "force actual (re)moval of files"
+  (cl-force "true")])
+
+(log-msg 5 (format "Given arguments:\n  profile: ~s\n  verbosity: ~s"  (cl-profile) (cl-verbosity)))
+(check-backups (cl-profile))
+(log-msg 0 "done")

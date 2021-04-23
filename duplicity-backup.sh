@@ -208,6 +208,7 @@ execute_command() {
       ;;
     collection-status)
       if [ -w "$BACKUP_FOLDER" ]; then
+        echo "duplicity collection-status file://${BACKUP_FOLDER}"
         eval "duplicity collection-status file://${BACKUP_FOLDER}"
         exit 0
       else
