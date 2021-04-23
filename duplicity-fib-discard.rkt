@@ -915,13 +915,13 @@
 (: check-backups : String -> Void)
 ;; simple check and print of current kept and discarded backups (no actual actions taken)
 (define (check-backups profile)
-  (unless (string=? (cl-force) "true")
-    (log-msg 0 "dry-run\ndeleting nothing (use --force to actually delete if appropriate)"))
+  (unless (cl-force)
+    (log-msg 1 "dry-run\ndeleting nothing (use --force to actually delete if appropriate)"))
   (log-msg 5 "locating configuration")
   (define config     (read-configuration (file->lines (build-path (find-system-path 'home-dir) ".duplicity/config")) profile))
   (log-msg 2 (format "using configuration profile ~a" profile))
   (define backup-dir (hash-ref config 'backup-folder))
-  (log-msg 0 (format "processing backup in ~a" backup-dir))
+  (log-msg 1 (format "processing backup in ~a" backup-dir))
   (cond [(directory-exists? backup-dir)
          (log-msg 6 (format "dir ~s exists" backup-dir))
          (define full-backup-files   (directory-list backup-dir))
@@ -947,14 +947,14 @@
          (log-msg 4 (format "keep ~s" (hash-ref classified-sigfiles 'keep)))
          (log-msg 3 (format "keeping ~a full backup(s)" (set-count (hash-ref classified-sigfiles 'keep))))
          (log-msg 4 (format "discard ~s" (hash-ref classified-sigfiles 'discard)))
-         (log-msg 0 (format "discarding ~a full backup(s)" (set-count (hash-ref classified-sigfiles 'discard))))
+         (log-msg 1 (format "discarding ~a full backup(s)" (set-count (hash-ref classified-sigfiles 'discard))))
          (define all-files-to-discard (append (flatten discarded-full-files) (flatten discarded-dep-files)))
          (log-msg 6 (format "discard along with sigfile, dependend files: ~a" (length all-files-to-discard)))
          (define size-to-discard (file-sizes (cast all-files-to-discard (Listof Path)) backup-dir))
-         (log-msg 0 (format "discarding size ~a" (bytes->string size-to-discard)))
+         (log-msg 1 (format "discarding size ~a" (bytes->string size-to-discard)))
          (cond [(and (set=? intervals intervals-after)
                      (not (set-empty? (hash-ref classified-sigfiles 'discard))))
-                (log-msg 0 "discarding superfluous backups ...")
+                (log-msg 1 "discarding superfluous backups ...")
                 (for-each (lambda ([path : Any])
                             (when (path? path)
                               (begin
@@ -962,43 +962,45 @@
                                 (when (and (log-level<= 4)
                                          (log-level>= 1))
                                   (write-rotating-bar))
-                                (when (string=? "true" (cl-force))
+                                (when (cl-force)
                                   (rename-file-or-directory (build-path backup-dir path) (build-path sec-dump path))))))
                           all-files-to-discard)]
                [(not (set=? intervals intervals-after))
-                (log-msg 0 "WARNING: not doing anything, since interval would be incomplete.")]
+                (log-msg 1 "WARNING: not doing anything, since interval would be incomplete.")]
                [else
-                (log-msg 0 "nothing discarded")])]
+                (log-msg 1 "nothing discarded")])]
         [else
-         (log-msg 0 (format "dir ~s does not exist" backup-dir))]))
+         (log-msg 1 (format "dir ~s does not exist" backup-dir))]))
 
-(: string->integer : String -> Real)
-(define (string->integer str)
-  (define num (string->number str))
-  (if (real? num)
-      num
-      0))
+(: string->loglevel : String -> Nonnegative-Integer)
+(define (string->loglevel str)
+  (define num (exact-floor (real-part (or (string->number str) 3))))
+  (if (nonnegative-integer? num)
+    num
+    3))
 
 (: log-level<= : Integer -> Boolean)
 (define (log-level<= level)
-  (<= (string->integer (cl-verbosity)) level))
+  (<= (cl-verbosity) level))
 
 (: log-level>= : Integer -> Boolean)
 (define (log-level>= level)
-  (>= (string->integer (cl-verbosity)) level))
+  (>= (cl-verbosity) level))
 
 ;; (check-backups "default")
 (: log-msg : Integer String -> Void)
 (define (log-msg level message)
   (when (log-level>= level)
     (for-each (lambda (line)
-                (when (string=? "true" (cl-show-log-levels))
+                (when (cl-show-log-levels)
                   (with-colors (background-color) 'blue
                     (lambda () (printf (format "L~a: " level)))))
                 (printf (format "~a\n" line)))
               (string-split message "\n"))))
 
+(: rotating-bar-index Nonnegative-Integer)
 (define rotating-bar-index 0)
+(: rotating-bar-strings String)
 (define rotating-bar-strings  ".oO0Oo") ;; "|/-\\"
 (: rotating-bar-last-output Real)
 (define rotating-bar-last-output #i1)
@@ -1011,26 +1013,36 @@
     (set! rotating-bar-last-output now)
     (set! rotating-bar-index (remainder (add1 rotating-bar-index) (string-length rotating-bar-strings)))))
 
+(: cl-profile (Parameterof String))
 (define cl-profile (make-parameter "default"))
-(define cl-verbosity (make-parameter "3" ))
-(define cl-force (make-parameter "false"))
-(define cl-show-log-levels (make-parameter "false"))
+(: cl-verbosity (Parameterof Nonnegative-Integer))
+(define cl-verbosity (make-parameter 3 ))
+(: cl-force (Parameterof Boolean))
+(define cl-force (make-parameter #f))
+(: cl-show-log-levels (Parameterof Boolean))
+(define cl-show-log-levels (make-parameter #f))
 
 (command-line
+ #:usage-help
+ "This will check backup interval coverage using fibonacci numbers, "
+ "discarding old backups that do not add to interval coverage now, "
+ "nor anytime in the future."
+ ""
+ "NOTHING IS CHANGED UNLESS OPTION '-f' or '--force' IS GIVEN"
+ ""
  #:once-each
  [("-p" "--profile")
   profile "select a backup profile for configuration"
   (cl-profile (if (string? profile) profile "default"))]
  [("-l" "--show-log-level")
   "show log level before message"
-  (cl-show-log-levels "true")]
+  (cl-show-log-levels #t)]
  [("-v" "--verbose" "--verbosity")
   verbosity "number 0..9 of verbosity"
-  (cl-verbosity (if (string? verbosity) verbosity "3"))]
+  (cl-verbosity (string->loglevel (if (string? verbosity) verbosity "3")))]
  [("-f" "--force")
   "force actual (re)moval of files"
-  (cl-force "true")])
+  (cl-force #t)])
 
-(log-msg 5 (format "Given arguments:\n  profile: ~s\n  verbosity: ~s"  (cl-profile) (cl-verbosity)))
 (check-backups (cl-profile))
-(log-msg 0 "done")
+(log-msg 1 "done")
