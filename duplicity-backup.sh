@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH=$PATH:/home/pe/bin/bin:/home/pe/bin:/home/pe/.nix-profile/bin:/etc/profiles/per-user/pe/bin
+
 PROFILE="default"               # profile name, no spaces allowed, just regular characters
 
 VERSION="0.2.1"
@@ -26,7 +28,7 @@ IGNORE_WITHIN_HOURS=1           # ignore calls that are x hours old
 BATID="BAT0"                    # battery to check TODO put into configuration
 
 DISCHARGING="Discharging"
-MIN_DISCHARGING_LEVEL=50        # minimal battery level for backup to execute TODO put into configuration
+MIN_BATTERY_LEVEL=50            # min battery discharge level for backup to execute TODO put into configuration
 
 BACKUP_MODE="incremental"       # or "full", which will always do a full backup
 MONTHS_TO_FULL=1                # in case of incrementals, month difference that forces full backup
@@ -39,7 +41,7 @@ check_battery_level() {
   BATLEVEL=$(cat /sys/class/power_supply/${BATID}/capacity)
   BATSTATE=$(cat /sys/class/power_supply/${BATID}/status)
 
-  if [ "$BATSTATE" = "$DISCHARGING" -a $BATLEVEL -le $MIN_DISCHARGING_LEVEL ]; then
+  if [ "$BATSTATE" = "$DISCHARGING" -a $BATLEVEL -le $MIN_BATTERY_LEVEL ]; then
     echo "Battery level too low ($BATLEVEL%). Please plugin."
     [ "$DRYRUN" != "true" ] && exit 1
   else
@@ -96,7 +98,6 @@ usage_options() {
   printf "    backup                            execute configured backup\n"
   printf "    key-status                        exit code 0 = key is unlocked, else exit code !=0\n"
   printf "    collection-status                 backup collection status\n"
-#  printf "    cleanup                           cleanup old backup collections\n"
   printf "\n"
   printf "  flags:\n"
   printf "    [--fake-run]                      run duplicity (and all backup calculations) without actually making a backup.\n"
@@ -105,7 +106,6 @@ usage_options() {
   printf "    [--force]                         continue in the face of errors (in options)\n"
   printf "    [--keep n]                        keep n full backup (chains) on cleanup\n"
   printf "    [--no-cpu-limit]                  don't limit the cpu during backup\n"
-#  printf "    [--notify|n]                      send notifications\n"
   printf "    [--encryption-key keyid]          use the given gpg encryption key for backup encryption\n"
   printf "    [--include-filelist filelist]     use the given include-filelist during backup\n"
   printf "    [--exclude-filelist filelist]     use the given exclude-filelist during backup\n"
@@ -200,7 +200,7 @@ execute_command() {
       printf "ignore_within_hours  : $IGNORE_WITHIN_HOURS\n"
       printf "batid                : $BATID\n"
       printf "discharging          : $DISCHARGING\n"
-      printf "min_discharging_level: $MIN_DISCHARGING_LEVEL\n"
+      printf "min_battery_level    : $MIN_BATTERY_LEVEL\n"
       printf "backup_mode          : $BACKUP_MODE\n"
       printf "months_to_full       : $MONTHS_TO_FULL\n"
       check_validity_of_backup_parameters
@@ -528,6 +528,7 @@ pre_backup_hook() {
     if [ "$DRYRUN" != "false" ]; then
       echo "pre hook: \"$HOOK\" would be executed (if dryrun would be false)."
     else
+      [ "$VERBOSE" == "true" ] && printf "running pre backup hook: '${HOOK}'\n"
       $HOOK || true
     fi
   done
@@ -540,12 +541,12 @@ post_backup_hook() {
     if [ "$DRYRUN" != "false" ]; then
       echo "post hook: \"$HOOK\" would be executed (if dryrun would be false)."
     else
+      [ "$VERBOSE" == "true" ] && printf "running post backup hook: '${HOOK}'\n"
       $HOOK || true
     fi
   done
 }
 
-export PATH=$PATH:/home/pe/bin/bin:/home/pe/bin:/home/pe/.nix-profile/bin:/etc/profiles/per-user/pe/bin
 pgrep duplicity >/dev/null 2>&1 && { printf "Duplicity running. Please wait until finished.\n"; exit 1; }
 COMMAND=${1:-"NONE"}
 if [ $# -ge 1 ]; then
