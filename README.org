@@ -2,7 +2,6 @@
 
   Tooling around [[http://duplicity.nongnu.org/][duplicity]] to streamline backup creation and lifecycle.
 
-
 ** development
 
    Project development makes extensive use of [[https://www.gnu.org/software/emacs/][emacs]], [[https://racket-lang.org/][racket]], [[https://nixos.org/nix/][nix]] and [[https://direnv.net/][direnv]].
@@ -10,13 +9,37 @@
    Run tests within emacs using [[https://github.com/greghendershott/racket-mode][racket-mode]] via ~C-c C-t~.
    Run all tests from cli via ~raco test .~ in the project root.
 
-   To create a standalone executable, run ~raco exe --gui duplicity-get-fulls-to-delete.rkt~
+   To create a standalone executable, run ~raco exe --gui duplicity-fib-discard.rkt~
 
-   For coverage analysis, execute ~raco cover duplicity-get-fulls-to-delete.rkt~ and visit file:coverage/index.html
+   For coverage analysis, execute ~raco cover duplicity-fib-discard.rkt~ and visit file:coverage/index.html
 
    Create documentation by executing e.g. ~raco scribble literate-p.rkt~.
 
-** properties of backups to keep
+** usage
+
+   execute ~./dublicity-fib-discard.rkt --help~
+
+** changelog / todos
+   - [X] write properties that are checked before deletion is carried out
+   - [X] complete moving to temporary folder
+   - [X] cleanup local cache of duplicity meta data (in ~~/.cache/duplicity~) after (re)move of obsolete backup files
+         obsolete: simply cleanup whole cache folder once in a while.
+   - [X] implement property based testing for these properties
+         obsolete: proof needs no additional testing
+   - [ ] provide podman based image for a backend that can be queried via rest services
+   - [ ] write react redux based frontend against that backend
+
+** IMPLEMENT new strategy
+   - [X] algorithm for candidate removal
+     - given b_{i-1}, b_i, b_{i+1} (age ordered index into the backups available), b being the age of this backup in months from now
+     - further given, two of those three backups cover the same interval iv_n, with the interval length len(iv_n) = { fib(n) for n > 0
+     - and given that b_{i+1} - b_{i-1} < len(iv_n) = fib(n)
+     - then: b_i can be safely removed without the risk that it will now or ever add to the interval coverage!
+   - [X] prove that this algorithm does not worsen interval coverage on the next step (org-roam)
+   - [X] implement this algorithm
+   - [ ] translate this proof to agda
+
+** OBSOLETE properties of backups to keep
    - no backup of the four youngest (available) generations is deleted!
    - the oldest backup is never deleted
    - a backup that is deleted must satisfy the following (besides the above):
@@ -64,11 +87,3 @@
      - reformulated: given an interval within which a backup exists, the next older available backup must not be farther away than the
        interval length (of the older/newer one)
      - and! there may not arise this situation in the future => interval borders are of interest here
-
-** changelog / todos
-   - [X] write properties that are checked before deletion is carried out
-   - [X] complete moving to temporary folder
-   - [ ] cleanup local cache of duplicity meta data (in ~~/.cache/duplicity~) after (re)move of obsolete backup files
-   - [ ] implement property based testing for these properties
-   - [ ] provide podman based image for a backend that can be queried via rest services
-   - [ ] write react redux based frontend against that backend

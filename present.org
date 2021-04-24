@@ -252,6 +252,5 @@
   ;; org-tree-slide-presentation-length: 30
   ;; gb/slides-started: nil
   ;; org-tree-slide-content--pos: nil
-  ;; org-show-notification-handler: #'(lambda (msg) (message msg))
   ;; End:
 #+end_src
