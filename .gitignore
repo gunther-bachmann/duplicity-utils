@@ -2,3 +2,6 @@
 /present.tex
 /auto/
 /present.pdf
+/dist/
+/duplicity-fib-discard
+*.html

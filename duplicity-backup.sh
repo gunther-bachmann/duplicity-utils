@@ -18,7 +18,7 @@ TEMP_FOLDER=""                  # temporary folder during backup execution
 # NOTIFICATIONS=false
 NOCPULIMIT=false                # whether to limit the cpu load during backup
 FORCE=false                     # force to continue in the face of (configuration) errors
-KEEP_N=3                        # used by disabled command cleanup
+# KEEP_N=3                        # used by disabled command cleanup
 
 CPULIMIT=""                     # executable (found) for cpu limit
 IONICE=""                       # executable (found) for ionice
@@ -94,23 +94,25 @@ usage() {
 
 usage_options() {
   printf "  commands:\n"
-  printf "    print-config                      print current configuration\n"
   printf "    backup                            execute configured backup\n"
-  printf "    key-status                        exit code 0 = key is unlocked, else exit code !=0\n"
   printf "    collection-status                 backup collection status\n"
+  printf "    key-status                        exit code 0 = key is unlocked, else exit code !=0\n"
+  printf "    list-profiles                     list available profiles of the configuration\n"
+  printf "    print-config                      print current configuration\n"
   printf "\n"
   printf "  flags:\n"
+  printf "    [--backup-folder folder]          use the given backup folder during backup\n"
+  printf "    [--encryption-key keyid]          use the given gpg encryption key for backup encryption\n"
+  printf "    [--exclude-filelist filelist]     use the given exclude-filelist during backup\n"
   printf "    [--fake-run]                      run duplicity (and all backup calculations) without actually making a backup.\n"
   printf "                                      this corresponds to the duplicity option of dry run.\n"
   printf "    [--folder]                        use this folder as source instead of the default (home dir, '~')\n"
   printf "    [--force]                         continue in the face of errors (in options)\n"
-  printf "    [--keep n]                        keep n full backup (chains) on cleanup\n"
-  printf "    [--no-cpu-limit]                  don't limit the cpu during backup\n"
-  printf "    [--encryption-key keyid]          use the given gpg encryption key for backup encryption\n"
-  printf "    [--include-filelist filelist]     use the given include-filelist during backup\n"
-  printf "    [--exclude-filelist filelist]     use the given exclude-filelist during backup\n"
   printf "    [--ignore-within-hours n]         ignore calls to backup within n hours\n"
-  printf "    [--backup-folder folder]          use the given backup folder during backup\n"
+  printf "    [--include-filelist filelist]     use the given include-filelist during backup\n"
+  printf "    [--list-profiles]                 print available profiles of the configuration\n"
+  printf "    [--no-cpu-limit]                  don't limit the cpu during backup\n"
+  printf "    [--profile]                       use the given profile of the configuration\n"
   printf "    [--temp-folder folder]            (used for discarding old backups)\n"
   printf "    [--verbose|-v]                    turn on verbose output\n"
   printf "    [--version|-V]                    print version of this program\n"
@@ -192,7 +194,6 @@ execute_command() {
       printf "temp_folder          : $TEMP_FOLDER\n"
       printf "nocpulimit           : $NOCPULIMIT\n"
       printf "force                : $FORCE\n"
-      printf "keep_n               : $KEEP_N\n"
       printf "cpulimit             : $CPULIMIT\n"
       printf "ionice               : $IONICE\n"
       printf "nice                 : $NICE\n"
@@ -215,6 +216,12 @@ execute_command() {
         echo "Backupfolder not mounted (\"$BACKUP_FOLDER\")"
         exit 1
       fi
+      ;;
+    list-profiles)
+      [ "$VERBOSE" == "true" ] && echo "  list profiles."
+      CONF=$(realpath $(find_configuration_file))
+      cat $CONF | grep -e '\[[^]].*\]' | sed 's/^.\(.*\).$/\1/'
+      exit 0
       ;;
     key-status)
       [ "$VERBOSE" == "true" ] && echo "  determine key status."
@@ -292,10 +299,10 @@ proc_option() {
       IGNORE_WITHIN_HOURS="$VALUE"
       [ "$VERBOSE" == "true" ] && echo "  ignoring calls to backup within ${IGNORE_WITHIN_HOURS}h of last backup."
       ;;
-    keep)
-      KEEP_N="$VALUE"
-      [ "$VERBOSE" == "true" ] && echo "  keeping ${KEEP_N} full backups on cleanup."
-      ;;
+    # keep)
+    #   KEEP_N="$VALUE"
+    #   [ "$VERBOSE" == "true" ] && echo "  keeping ${KEEP_N} full backups on cleanup."
+    #   ;;
     fake-run)
       FAKERUN=true
       [ "$VERBOSE" == "true" ] && echo "  executing a fake run."
