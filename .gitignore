@@ -5,3 +5,5 @@
 /dist/
 /duplicity-fib-discard
 *.html
+ltximg/
+auto/

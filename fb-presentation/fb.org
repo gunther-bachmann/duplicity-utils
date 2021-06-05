@@ -1,0 +1,131 @@
+#+title: Fibonacci Backups - Proving an Algorithm
+* Fibonacci Backups - Proving an Algorithm
+** Remember, backups are supposed to be safe - without waste
+   - *failure* -> nothing is done (wasting precious space)
+   - check: coverage condition to meet (making it safe but inoperable)
+   - interval, w/i each (at least) one backup
+     - visualized intervals using fibonacci numbers for interval growth:
+        | Month    |   0 |   1 |   2 | 3 4 | 5 6 7 | 8 9 10 11 12 | 13 14 15 16 17 18 19 20 | 21 ... |
+        | Interval | iv_0 | iv_1 | iv_2 | iv_3 | iv_4   | iv_5          | iv_6                     | iv_7    |
+     - the fibonacci number are
+        | n      | 0 | 1 | 2 | 3 | 4 | 5 | 6 |  7 |  8 |
+        | fib(n) | 0 | 1 | 1 | 2 | 3 | 5 | 8 | 13 | 21 |
+   - sketched initial algorithm - didn't work out
+     - keep the 4 youngest backups
+     - keep the oldest backup
+     - keep when the next oldest backup hits a fib number and the given hits a fib number, too
+   - brute force an option?
+     - check each backup whether it adds to the interval coverage
+     - what about the future of this (new) constellation?
+** Algorithms - long history
+   Ada Lovelace (1815-1852) - Calculation of Bernoulli numbers
+   [[file:Diagram_for_the_computation_of_Bernoulli_numbers.jpg]]
+** SW / Algorithms are supposed to be safe - but some are not (part I)
+   space (1962): the overbar error, rocket lost,  https://en.wikipedia.org/wiki/Mariner_1
+   transcription error (from math to program spec) resulted in explosion
+   [[file:Atlas_Agena_with_Mariner_1.jpg]]
+** SW / Algorithms are supposed to be safe - but some are not (part II)
+   medical equipment (radiation therapy, 1985-87): killed 3 people, https://en.wikipedia.org/wiki/Therac-25
+   libraries reused from older equipment are not automatically error free
+   [[file:Varian_TruBeam.jpg]]
+** SW / Algorithms are supposed to be safe - but some are not (part III)
+   - airplanes, cars, ebikes, nuclear plants ...
+   - software (e.g. java runtime): sorting
+     https://www.researchgate.net/publication/319405622_Verifying_OpenJDK's_Sort_Method_for_Generic_Collections
+     https://bugs.java.com/bugdatabase/view_bug.do?bug_id=8011944
+   - famous sw bugs: https://en.wikipedia.org/wiki/List_of_software_bugs
+** How to make programs safer
+   #+attr_org: :width 250px
+   [[file:MUTCD_R16-1.svg]]
+   - through process
+     - iso 15504: spice (software process improvement and capability determination)
+     - iso 26262: functional safety
+     - distilled from best practices
+     - lessen the possibility to forget something
+   - through methods
+     - fmea (Failure Mode and Effects Analysis)
+     - forces you to think about failures
+   - through sw tooling
+     - test
+     - proof
+** My attempt to make my algorithm safe (and operational)
+*** initial sketches
+    [[file:fib-backup.all-notes.png]]
+    - not a straight journey at all
+*** finding the vocabulary - it's all just numbers
+    - $b_i$ :: backup number i, value = months to today,
+    - $iv_n$ :: interval n (0..)
+        | Month    |   0 |   1 |   2 | 3 4 | 5 6 7 | 8 9 10 11 12 | 13 14 15 16 17 18 19 20 | 21 ... |
+        | Interval | iv_0 | iv_1 | iv_2 | iv_3 | iv_4   | iv_5          | iv_6                     | iv_7    |
+    - $B$ :: set of backups b_i,
+    - $Iv$ :: set of (covered) intervals iv_n
+    - $B_{+x}$ :: set of backups after x months (aging)
+    - $Iv_{+x}$ :: set of (covered) intervals after x months
+*** step by step (I)
+    - making statements
+      - axioms - set the stage
+        e.g. interval length
+
+          $$\boxed{\textrm{axiom 1:}\hspace{10} len(iv_n) = \begin{cases} 1 & \quad n=0 \\ fib(n) & \quad n > 0 \end{cases}}$$
+
+      - lemmata - getting there
+        e.g. case 1: b_{i-1} , b_i , b_{i+1} cover iv_n
+        *lemma*: b_{i-1} will cover iv_n longer than b_i
+
+        $$tc_{i-1}^n > tc_{i}^n$$
+
+        $$fib(n+2) - b_{i-1} -1 > fib(n+2) - b_{i} -1$$
+
+        $$b_{i-1} < b_{i} $$
+
+*** step by step (II)
+    - theorem - what do you want to prove?
+      $$\boxed{\textrm{theorem:}\hspace{10pt} \frac{ \begin{matrix} \forall x, x \in \mathbb{N}_0 \\
+          B_{+x} \textrm{ covers } Iv_{+x} \\
+          b_{i-1}, b_i, b_{i+1} \in B \\
+          (b_{i-1},b_i \textrm{ cover } iv_n) \lor (b_i, b_{i+1} \textrm{ cover } iv_n) \\
+          b_{i+1} - b_{i-1} < fib(n) \\
+          \end{matrix} } { B_{+x} \setminus b_i^{+x} \textrm{ covers } Iv_{+x}  } } $$
+
+   - reduction steps
+      - reduce to axioms or proven lemmata (or theorem at that)
+      - induction
+    - completeness
+      - divide and conquer
+      - cases unaddressed?
+*** bad part
+    - it took several (too many) iterations
+    - still not absolutely sure
+    - 2^nd pair of eyes reduces the risk
+** Next - attempt to use a proof system
+   - agda (because there is an emacs mode for it)
+   - things to gain
+     - reduce the amount of information that needs to be checked by a human
+     - gain confidence about the correctness / safety
+     - eliminate (just) one source of bugs  - or - not adding to the existing ones
+   - long way down the road
+     - prove the algorithm
+     - prove the implementation of the algorithm
+     - (prove the compiled version of the algorithm)
+     - prove the SW stack running the algorithm
+     - prove the HW stack running the SW stack
+** Thanks Folks
+   So long and thanks for all the fish
+
+   - picture: safety belt is public domain (see [[https://en.wikipedia.org/wiki/Seat_belt_use_rates_in_the_United_States#/media/File:MUTCD_R16-1.svg][here]])
+   - picture: ada lovelace bernoulli numbers is public domain (see [[https://en.wikipedia.org/wiki/Ada_Lovelace#/media/File:Diagram_for_the_computation_of_Bernoulli_numbers.jpg][here]])
+   - picture: mariner 1 is public domain (see [[https://en.wikipedia.org/wiki/Mariner_1#/media/File:Atlas_Agena_with_Mariner_1.jpg][here]])
+   - picture: radiation therapy is licensed under cc by-s 4 (see [[https://en.wikipedia.org/wiki/Radiation_therapy#/media/File:Varian_TruBeam.jpg][here]])
+
+ #+begin_src emacs-lisp
+   ;; remember to start the presentation with: M-x gb/presentation-start
+   ;; Local Variables:
+   ;; org-image-actual-width: (400)
+   ;; org-tree-slide-header: nil
+   ;; org-tree-slide-heading-emphasis: t
+   ;; org-tree-slide-modeline-display: 'lighter
+   ;; org-tree-slide-presentation-length: 25
+   ;; gb/slides-started: nil
+   ;; org-tree-slide-content--pos: nil
+   ;; End:
+   #+end_src
