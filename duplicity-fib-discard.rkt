@@ -324,7 +324,7 @@
 (module+ test #| quick-fib, inverse-fib |#
   (check-equal? (map quick-fib (range 30))
                 (map fib (range 30)))
-  (check-equal? (map inverse-fib (map quick-fib (range 3 100))) ;; before 3, fib inverse-fib is bijective
+  (check-equal? (map inverse-fib (map quick-fib (range 3 100))) ;; before 3, fib inverse-fib is not bijective
                 (range 3 100)))
 
 (: interval-num-of : Nonnegative-Integer -> Nonnegative-Integer)
