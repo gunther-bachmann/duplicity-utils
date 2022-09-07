@@ -116,7 +116,7 @@
    - picture: ada lovelace bernoulli numbers is public domain (see [[https://en.wikipedia.org/wiki/Ada_Lovelace#/media/File:Diagram_for_the_computation_of_Bernoulli_numbers.jpg][here]])
    - picture: mariner 1 is public domain (see [[https://en.wikipedia.org/wiki/Mariner_1#/media/File:Atlas_Agena_with_Mariner_1.jpg][here]])
    - picture: radiation therapy is licensed under cc by-s 4 (see [[https://en.wikipedia.org/wiki/Radiation_therapy#/media/File:Varian_TruBeam.jpg][here]])
-
+* - :noexport:
  #+begin_src emacs-lisp
    ;; remember to start the presentation with: M-x gb/presentation-start
    ;; Local Variables:
