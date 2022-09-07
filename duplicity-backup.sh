@@ -554,7 +554,7 @@ post_backup_hook() {
   done
 }
 
-pgrep duplicity >/dev/null 2>&1 && { printf "Duplicity running. Please wait until finished.\n"; exit 1; }
+pgrep duplicity >/dev/null 2>&1 && { usage; printf "\nDuplicity running. Please wait until finished.\n"; exit 1; }
 COMMAND=${1:-"NONE"}
 if [ $# -ge 1 ]; then
   shift

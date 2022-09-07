@@ -9,7 +9,7 @@
    Run tests within emacs using [[https://github.com/greghendershott/racket-mode][racket-mode]] via ~C-c C-t~.
    Run all tests from cli via ~raco test .~ in the project root.
 
-   To create a standalone executable, run ~raco exe --3m --gui duplicity-fib-discard.rkt~ (using the old 3m, 'BC' runtime)
+   To create a standalone executable, run ~raco exe --gui duplicity-fib-discard.rkt~ (using the old 3m, 'BC' runtime)
 
    For coverage analysis, execute ~raco cover duplicity-fib-discard.rkt~ and visit file:coverage/index.html
 
