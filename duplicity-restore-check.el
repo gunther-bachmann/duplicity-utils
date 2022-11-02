@@ -19,14 +19,16 @@ an alist is returned allowing access like (cdr (assoc \"encryption-key\" alist))
      (split-string
       (string-trim
        (shell-command-to-string
-        (format "md5sum '%s'" (expand-file-name filename))))
+        (format "md5sum %s" (shell-quote-argument (expand-file-name filename)))))
       " "))))
 
 (defun duplicity--restore-file (backup-location filename target-filename)
   "restore FILENAME in duplicity backup at BACKUP-LOCATION to TARGET-FILENAME"
   (shell-command
-   (format "duplicity restore --use-agent --file-to-restore '%s' '%s' '%s'"
-           filename (concat "file://" backup-location) (expand-file-name target-filename))))
+   (format "duplicity restore --use-agent --file-to-restore %s %s %s"
+           (shell-quote-argument filename)
+           (shell-quote-argument (concat "file://" backup-location))
+           (shell-quote-argument (expand-file-name target-filename)))))
 
 (defun duplicity--list-current-files-into (backup-location buffer-name)
   "restore FILENAME in duplicity backup at BACKUP-LOCATION to TARGET-FILENAME"
