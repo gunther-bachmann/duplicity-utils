@@ -481,6 +481,7 @@ run_backup() {
 #      notify-send "Starting backup ${PROFILE} ..."
 #    fi
     eval "nice -n 19 ionice -c 3 cpulimit -l $CPULIMIT -f duplicity -- $CMD $CMD_TAIL"
+    # eval "duplicity $CMD $CMD_TAIL" # works
 #    if [ "$NOTIFICATIONS" == "true" ]; then
 #      notify-send "Finished backup ${PROFILE}, exit code $? !"
 #    fi
@@ -515,6 +516,8 @@ check_installation() {
   GPG=$(command -v gpg || true)
   # NOTIFIER=$(command -v notify-send || true)
 
+  # SOMEPRG=$(command -v someprg || true)
+
   [ "$CPULIMIT" != "" ] && [ "$VERBOSE" == "true" ] && cpulimit --help | head -n 1 || true
   [ "$IONICE" != "" ] && [ "$VERBOSE" == "true" ] && ionice --version
   [ "$NICE" != "" ] && [ "$VERBOSE" == "true" ] && nice --version | head -n 1
@@ -523,7 +526,22 @@ check_installation() {
   [ "$GPG" != "" ] && [ "$VERBOSE" == "true" ] && gpg --version | head -n 1
   # [ "$NOTIFIER" != "" ] && [ "$VERBOSE" == "true" ] && notify-send --version | head -n 1
 
-  [ "$CPULIMIT$IONICE$NICE$DUPLICITY$DATEDIFF$GPG" == "" ] && { printf "Please ensure cpulimit, ionice, nice, duplicity, datediff, gpg is installed\n"; exit 1; }
+  # [ "$SOMEPRG" != "" ] && [ "$VERBOSE" == "true" ] && someprg --version | head -n 1
+
+  SHOULDEXIT=0
+
+  [ "$CPULIMIT" == "" ] && { printf "Please ensure cpulimit is installed\n"; SHOULDEXIT=1; }
+  [ "$IONICE" == "" ] && { printf "Please ensure ionice is installed\n"; SHOULDEXIT=1; }
+  [ "$NICE" == "" ] && { printf "Please ensure nice is installed\n"; SHOULDEXIT=1; }
+  [ "$DUPLICITY" == "" ] && { printf "Please ensure duplicity is installed\n"; SHOULDEXIT=1; }
+  [ "$DATEDIFF" == "" ] && { printf "Please ensure datediff is installed\n"; SHOULDEXIT=1; }
+  [ "$GPG" == "" ] && { printf "Please ensure gpg is installed\n"; SHOULDEXIT=1; }
+
+  # [ "$SOMEPRG" == "" ] && { printf "Please ensure someprg is installed\n"; SHOULDEXIT=1; }
+
+  if (( SHOULDEXIT != 0 )); then
+    exit 1;
+  fi
 
   return 0
 }

@@ -1,5 +1,5 @@
 #! /usr/bin/env racket
-#lang typed/racket #:with-refinements
+#lang at-exp typed/racket #:with-refinements
 
 ;; find out which months/generation/age can be deleted from backup given the following:
 ;; - full backups are done monthly, incrementals sub monthly
@@ -390,7 +390,7 @@
                 (define result (quick-fib interval-index))
                 (if (>= result 1)
                     result
-                    1)))))
+                    (error @~a{result of fib(@interval-index) should never be < 1 but was @result}))))))
 
 (module+ test #| interval-length |#
   (check-equal? (interval-length 0)
@@ -1011,5 +1011,6 @@
   "force actual (re)moval of files"
   (cl-force #t)])
 
-(check-backups (cl-profile))
-(log-msg 1 "done")
+(module+ main
+  (check-backups (cl-profile))
+  (log-msg 1 "done"))
