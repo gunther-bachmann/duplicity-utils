@@ -20,6 +20,8 @@
    execute ~./dublicity-fib-discard.rkt --help~
 
 ** changelog / todos
+   - [X] configuration + backup of hard-links in 'docbase' (see https://github.com/gunther-bachmann/emacs-doc-base)
+         solution: script saves docbase links into deeply nested folder structure in separate text file
    - [X] write properties that are checked before deletion is carried out
    - [X] complete moving to temporary folder
    - [X] cleanup local cache of duplicity meta data (in ~~/.cache/duplicity~) after (re)move of obsolete backup files
