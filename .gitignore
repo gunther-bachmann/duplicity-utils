@@ -9,3 +9,4 @@ ltximg/
 auto/
 /distribution/
 .direnv/
+*.elc

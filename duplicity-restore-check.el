@@ -1,12 +1,19 @@
+(eval-when-compile
+  (require 'cl-lib))
+(require 'dash)
+(require 'async)
+(require 'cl-seq)
+(require 'pcre)
+
 (defun duplicity--get-config-alist (file profile)
   "retrieve duplicity backup configuration for PROFILE from the given FILE
 
 an alist is returned allowing access like (cdr (assoc \"encryption-key\" alist))"
   (let* ((config (slurp file))
          (config-lines (split-string config "\n"))
-         (profile-start (--drop-while (not (s-starts-with? (format "[%s]" profile) it)) config-lines))
-         (profile-lines (--take-while (not (s-starts-with? "[" it)) (-drop 1 profile-start)))
-         (actual-config (--filter (not (s-starts-with? "#" it)) profile-lines))
+         (profile-start (--drop-while (not (string-prefix-p (format "[%s]" profile) it)) config-lines))
+         (profile-lines (--take-while (not (string-prefix-p "[" it)) (-drop 1 profile-start)))
+         (actual-config (--filter (not (string-prefix-p "#" it)) profile-lines))
          (actual-alist  (--map (when (string-match "^\\([a-zA-Z-_]*\\): \\([^#]*\\)" it)
                                  (cons (match-string 1 it) (match-string 2 it)))
                                actual-config)))
@@ -15,7 +22,7 @@ an alist is returned allowing access like (cdr (assoc \"encryption-key\" alist))
 (defun md5sum (filename)
   "return nil or the md5sum as string of FILENAME"
   (when (file-regular-p (expand-file-name filename))
-    (first
+    (car
      (split-string
       (string-trim
        (shell-command-to-string
@@ -84,6 +91,23 @@ an alist is returned allowing access like (cdr (assoc \"encryption-key\" alist))
 
 ;; (duplicity--files-buffer--get-regular-file-from  "file:///run/media/pe/684110cc-325f-4307-bce0-843930ff7de6/data-backup" "*backup files*" "~" 48 2)
 
+(defun duplicity--files-buffer--static-probes-for-restore-check  (backup-location buffer-name)
+  (with-current-buffer (duplicity--files-buffer--get backup-location buffer-name)
+    (--filter it
+              (-map (lambda (file-name)
+                      (progn
+                        (goto-char 0)
+                        (if (pcre-re-search-forward (format "^.{24} %s$" (regexp-quote file-name)) nil t)
+                          file-name
+                          (progn
+                            (message "skipping file '%s' during restore check (reason: not found in backup)" file-name)
+                            nil))))
+                    (if (boundp 'duplicity--static-file-list-for-restore-check)
+                        duplicity--static-file-list-for-restore-check
+                      '())))))
+
+;; (duplicity--files-buffer--static-probes-for-restore-check "file:///run/media/pe/684110cc-325f-4307-bce0-843930ff7de6/data-backup" "*backup files*")
+
 (defun duplicity--files-buffer--probes-for-restore-check (backup-location buffer-name folder-backed-up random-num)
   "provide a list of files for restore check.
 
@@ -136,7 +160,8 @@ this will include:
                         (file-readable-p temp-file)
                         (file-readable-p (expand-file-name (concat (duplicity--make-folder-prefix folder-backed-up) filename)))
                         (string-match-p "^[a-f0-9]*$" rest-md5)
-                        (= 32 (length rest-md5))))))
+                        (= 32 (length rest-md5))))
+        (unless result (with-temp-message "FAILED COMPARE"))))
     (delete-file temp-file)
     (when result
         rest-md5)))
@@ -158,6 +183,49 @@ this will include:
     (cond
      ((gb/backup-is-running)
       (message "backup currently running, please try later"))
+     ((not (file-directory-p backup-folder))
+      (message "backup folder %s not found" backup-folder))
+     ((not (gb/gpg-key-query-if-locked key 3))
+      (message "unlock the backup key first"))
+     ((progn (message "collecting backup information ...")
+             (< (duplicity--files-buffer--get-number backup-folder backup-files-buffer)
+                500))
+      (message "check makes only sense for backups of size 500+ files, found only %d"
+               (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
+     (t (let* ((num 1)
+               (random-file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
+               (static-file-list (duplicity--files-buffer--static-probes-for-restore-check backup-folder backup-files-buffer))
+               (file-list (append static-file-list random-file-list))
+               (failed-file-list '())
+               (last-num (length file-list))
+               (collected-md5-hashes
+                (-map (lambda (file-name)
+                        (message "checking latest backup (%d/%d, failed %d: %s)" num last-num (length failed-file-list) file-name)                         
+                        (setq num (1+ num))                 
+                        (let ((result (duplicity--restore-file-and-compare backup-folder file-name folder-backed-up)))
+                          (unless result
+                            (setq failed-file-list (cons file-name failed-file-list)))
+                          result))
+                      file-list)))
+          (if (and (null failed-file-list)
+                 (> last-num 2)
+                 (list-has-no-duplicates collected-md5-hashes))
+              (message "backup extraction and compare successful")
+            (read-answer (format "compare FAILED for files: %s, " (string-join failed-file-list ", "))
+                         '(("accept" ?a "accept the difference and take measures")))))))))
+
+;; experiment to execute tests asynchronously
+(defun duplicity--check-latest-backup-async ()
+  (interactive)
+  
+    (let* ((config-alist (duplicity--get-config-alist "~/.duplicity/config" "default"))
+         (key (cdr (assoc "encryption-key" config-alist)))
+         (backup-folder (cdr (assoc "backup-folder" config-alist)))
+         (folder-backed-up (cdr (assoc "folder" config-alist)))
+         (backup-files-buffer "*backup files*"))
+    (cond
+     ((gb/backup-is-running)
+      (message "backup currently running, please try later"))
      ((not (f-directory? backup-folder))
       (message "backup folder %s not found" backup-folder))
      ((not (gb/gpg-key-query-if-locked key 3))
@@ -167,26 +235,41 @@ this will include:
                 500))
       (message "check makes only sense for backups of size 500+ files, found only %d"
                (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
-     (t (let* ((success t)
-               (num 1)
-               (file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
-               (last-num (length file-list))
-               (collected-md5-hashes
-                (-map-when (lambda (file-name) success)
-                           (lambda (file-name)
-                             (message "checking latest backup (%d/%d: %s)" num last-num file-name)                         
-                             (setq num (1+ num))
-                             (setq success (duplicity--restore-file-and-compare backup-folder file-name folder-backed-up)))
-                           file-list)))
-          (setq success (and success
-                           (> last-num 2)
-                           (list-has-no-duplicates collected-md5-hashes)))
-          (if success
-              (message "backup extraction and compare successful")
-            (read-answer "backup extraction and compare FAILED"
-                         '(("accept" ?a "accept the difference and take measures")))))))))
+     (t (let* ((num 1)
+               (random-file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
+               (static-file-list (duplicity--files-buffer--static-probes-for-restore-check backup-folder backup-files-buffer))
+               (file-list (append static-file-list random-file-list))
+               (reporter (make-progress-reporter "comparing ..." )))
+          (async-start `(lambda ()
+                ,(async-inject-environment "load-path")
+                (require 'duplicity-restore-check)                
+                (let ((num 1)
+                      (last-num (length (quote ,file-list))))
+                  (cl-maplist (lambda (file-name)
+                                (progn
+                                  (async-send :status 
+                                              (format "checking latest backup (%d/%d: %s)" num last-num (car file-name)))
+                                  (setq num (1+ num))
+                                  (cons (car file-name) (duplicity--restore-file-and-compare ,backup-folder (car file-name) ,folder-backed-up))))
+                              (quote ,file-list))))
+             `(lambda (collected-fn-hash-pairs)
+               (if (async-message-p collected-fn-hash-pairs)
+                   (progn
+                     (progress-reporter-force-update (quote ,reporter))
+                     (message (plist-get collected-fn-hash-pairs ':status)))
+                 (let ((collected-md5-hashes (cl-remove-if 'null (cl-maplist 'cdar collected-fn-hash-pairs)))
+                       (failed-file-list (cl-maplist 'caar (cl-remove-if-not '(lambda (lipair) (null (cdr lipair))) collected-fn-hash-pairs))))
+                   (progress-reporter-done (quote ,reporter))
+                   (if (and (null failed-file-list)
+                          (> (length collected-fn-hash-pairs) 2)
+                          (list-has-no-duplicates collected-md5-hashes))
+                       (message "backup compare successful")
+                     (read-answer (format "compare FAILED for files: %s, " (string-join  failed-file-list ", "))
+                                  '(("accept" ?a "accept the difference and take measures")))))))))))))
 
 ;; (duplicity--check-latest-backup)
+
+(provide 'duplicity-restore-check)
 
 
 
