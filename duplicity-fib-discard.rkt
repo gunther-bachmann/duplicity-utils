@@ -869,11 +869,12 @@
 (: bytes->string : Integer -> String)
 ;; transform number of bytes into human readable string
 (define (bytes->string bytes)
-  (cond [(<= bytes 1024) (format "~a Bytes" bytes)]
-        [(<= bytes (expt 1024 2)) (format "≈ ~a kB" (arithmetic-shift bytes -10))]
-        [(<= bytes (expt 1024 3)) (format "≈ ~a MB" (arithmetic-shift bytes -20))]
-        [(<= bytes (expt 1024 4)) (format "≈ ~a GB" (arithmetic-shift bytes -30))]
-        [(<= bytes (expt 1024 5)) (format "≈ ~a TB" (arithmetic-shift bytes -40))]
+  (cond [(= bytes 1) "1 Byte"]
+        [(<= bytes 1024) (format "~a Bytes" bytes)]
+        [(<= bytes (expt 1024 2)) (format "≈ ~a kB" (~r (/ bytes 1024) #:precision 1))]
+        [(<= bytes (expt 1024 3)) (format "≈ ~a MB" (~r (/ bytes (expt 1024 2)) #:precision 1))]
+        [(<= bytes (expt 1024 4)) (format "≈ ~a GB" (~r (/ bytes (expt 1024 3)) #:precision 1))]
+        [(<= bytes (expt 1024 5)) (format "≈ ~a TB" (~r (/ bytes (expt 1024 4)) #:precision 1))]
         [else "very large"]))
 
 (: check-backups : String -> Void)
