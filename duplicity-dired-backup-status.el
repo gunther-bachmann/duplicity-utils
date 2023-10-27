@@ -199,7 +199,7 @@ based on the given EXCLUSION-CONFIG"
 
 (bind-key "C-c b i" #'duplicity--check-current-file-backup-status dired-mode-map)
 
-(defun gb/get-list-of-files-in-current-dired-mode ()
+(defun duplicity--get-list-of-files-in-current-dired-mode ()
   "collect all normalized full path file names of the current dired buffer"
   (when (eq major-mode 'dired-mode)
     (let ((file-name-list '()))
@@ -215,7 +215,7 @@ based on the given EXCLUSION-CONFIG"
           ))
       file-name-list)))
 
-(defun gb/mark-all-backuped-files ()
+(defun duplicity--mark-all-backuped-files ()
   "mark files in the current dired buffer with
 * if part of the backup
 % partially backed up (only folders may have this mark)
@@ -225,7 +225,7 @@ based on the given EXCLUSION-CONFIG"
     (let* ((tagged-file-name-list
             (duplicity--map-files-covered-by-backup
              "~/.duplicity/data.exclude.list.txt"
-             (gb/get-list-of-files-in-current-dired-mode))))
+             (duplicity--get-list-of-files-in-current-dired-mode))))
       (save-excursion
         (goto-char (point-min))
         (while (not (eobp))
@@ -242,7 +242,7 @@ based on the given EXCLUSION-CONFIG"
                          (previous-line)))))))
           (forward-line))))))
 
-(bind-key "C-c b I" #'gb/mark-all-backuped-files dired-mode-map)
+(bind-key "C-c b I" #'duplicity--mark-all-backuped-files dired-mode-map)
 
 (defun duplicity--file-status (file-name)  
   (let ((abs-file-name (expand-file-name file-name)))
