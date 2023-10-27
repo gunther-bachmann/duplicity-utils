@@ -193,7 +193,28 @@ this will include:
                 500))
       (message "check makes only sense for backups of size 500+ files, found only %d"
                (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
-     (t (let* ((num 1)
+     (t (duplicity--execute-backup-check backup-folder backup-files-buffer folder-backed-up)))))
+
+(defun duplicity--check-add-modeline-status () "" (duplicity--async-modeline-mode 1) (setq duplicity--progress-string "...") (force-mode-line-update t))
+(defun duplicity--check-update-modeline-status (new-str)  "" (setq duplicity--progress-string new-str) (force-mode-line-update t))
+(defun duplicity--check-remove-modeline-status () "" (duplicity--async-modeline-mode 0) (setq duplicity--progress-string "...") (force-mode-line-update t))
+
+(defvar duplicity--progress-string "..." "compare progress as string e.g. 5/10")
+
+(define-minor-mode duplicity--async-modeline-mode
+    "Notify mode-line that an async process run."
+  :global t
+  :lighter (:eval (propertize (format  " [compare running (%s)]" duplicity--progress-string)
+                              'face 'dired-async-mode-message))
+  (unless duplicity--async-modeline-mode
+    (let ((visible-bell t)) (ding))))
+
+(defun duplicity--execute-backup-check (backup-folder backup-files-buffer folder-backed-up)
+  ""
+  (unwind-protect
+      (progn
+        (duplicity--check-add-modeline-status)
+        (let* ((num 1)
                (random-file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
                (static-file-list (duplicity--files-buffer--static-probes-for-restore-check backup-folder backup-files-buffer))
                (file-list (append static-file-list random-file-list))
@@ -202,6 +223,7 @@ this will include:
                (collected-md5-hashes
                 (-map (lambda (file-name)
                         (message "checking latest backup (%d/%d, failed %d: %s)" num last-num (length failed-file-list) file-name)                         
+                        (duplicity--check-update-modeline-status (format "%d/%d" num last-num))
                         (setq num (1+ num))                 
                         (let ((result (duplicity--restore-file-and-compare backup-folder file-name folder-backed-up)))
                           (unless result
@@ -213,13 +235,51 @@ this will include:
                  (list-has-no-duplicates collected-md5-hashes))
               (message "backup extraction and compare successful")
             (read-answer (format "compare FAILED for files: %s, " (string-join failed-file-list ", "))
-                         '(("accept" ?a "accept the difference and take measures")))))))))
+                         '(("accept" ?a "accept the difference and take measures"))))))
+    (duplicity--check-remove-modeline-status)))
+
+(defun duplicity--execute-backup-check-async (backup-folder backup-files-buffer folder-backed-up)
+  "do actual backup check asynchronously"
+  (duplicity--check-add-modeline-status)
+  (let* ((num 1)
+         (random-file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
+         (static-file-list (duplicity--files-buffer--static-probes-for-restore-check backup-folder backup-files-buffer))
+         (file-list (append static-file-list random-file-list))
+         (reporter (make-progress-reporter "comparing ..." )))
+    ;; (dired-async-mode-line-message "starting compare" 'dired-async-mode-message)
+    (async-start `(lambda ()
+                    ,(async-inject-environment "load-path")
+                    (require 'duplicity-restore-check)                
+                    (let ((num 1)
+                          (last-num (length (quote ,file-list))))
+                      (cl-maplist (lambda (file-name)
+                                    (progn
+                                      (async-send :status 
+                                                  (format "checking latest backup (%d/%d: %s)" num last-num (car file-name)))                                            
+                                      (setq num (1+ num))
+                                      (cons (car file-name) (duplicity--restore-file-and-compare ,backup-folder (car file-name) ,folder-backed-up))))
+                                  (quote ,file-list))))
+                 `(lambda (collected-fn-hash-pairs)
+                    (require 'dired-async)
+                    (if (async-message-p collected-fn-hash-pairs)
+                        (progn
+                          (duplicity--check-update-modeline-status (plist-get collected-fn-hash-pairs ':status))
+                          (progress-reporter-force-update (quote ,reporter))
+                          (message (plist-get collected-fn-hash-pairs ':status)))
+                      (let ((collected-md5-hashes (cl-remove-if 'null (cl-maplist 'cdar collected-fn-hash-pairs)))
+                            (failed-file-list (cl-maplist 'caar (cl-remove-if-not '(lambda (lipair) (null (cdr lipair))) collected-fn-hash-pairs))))
+                        (duplicity--check-remove-modeline-status)
+                        (progress-reporter-done (quote ,reporter))
+                        (if (and (null failed-file-list)
+                               (> (length collected-fn-hash-pairs) 2)
+                               (list-has-no-duplicates collected-md5-hashes))
+                            (dired-async-mode-line-message "backup compare successful" 'dired-async-mode-message)
+                          (dired-async-mode-line-message (format "compare FAILED for files: %s, " (string-join  failed-file-list ", ")) 'dired-async-mode-message))))))))
 
 ;; experiment to execute tests asynchronously
 (defun duplicity--check-latest-backup-async ()
   (interactive)
-  
-    (let* ((config-alist (duplicity--get-config-alist "~/.duplicity/config" "default"))
+  (let* ((config-alist (duplicity--get-config-alist "~/.duplicity/config" "default"))
          (key (cdr (assoc "encryption-key" config-alist)))
          (backup-folder (cdr (assoc "backup-folder" config-alist)))
          (folder-backed-up (cdr (assoc "folder" config-alist)))
@@ -236,45 +296,6 @@ this will include:
                 500))
       (message "check makes only sense for backups of size 500+ files, found only %d"
                (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
-     (t (let* ((num 1)
-               (random-file-list (duplicity--files-buffer--probes-for-restore-check backup-folder backup-files-buffer folder-backed-up 4))
-               (static-file-list (duplicity--files-buffer--static-probes-for-restore-check backup-folder backup-files-buffer))
-               (file-list (append static-file-list random-file-list))
-               (reporter (make-progress-reporter "comparing ..." )))
-          (dired-async-mode-line-message "starting compare" 'dired-async-mode-message)
-          (async-start `(lambda ()
-                          ,(async-inject-environment "load-path")
-                          (require 'duplicity-restore-check)                
-                          (let ((num 1)
-                                (last-num (length (quote ,file-list))))
-                            (cl-maplist (lambda (file-name)
-                                          (progn
-                                            (async-send :status 
-                                                        (format "checking latest backup (%d/%d: %s)" num last-num (car file-name)))
-                                            (setq num (1+ num))
-                                            (cons (car file-name) (duplicity--restore-file-and-compare ,backup-folder (car file-name) ,folder-backed-up))))
-                                        (quote ,file-list))))
-                       `(lambda (collected-fn-hash-pairs)
-                          (require 'dired-async)
-                          (if (async-message-p collected-fn-hash-pairs)
-                              (progn
-                                (progress-reporter-force-update (quote ,reporter))
-                                (message (plist-get collected-fn-hash-pairs ':status)))
-                            (let ((collected-md5-hashes (cl-remove-if 'null (cl-maplist 'cdar collected-fn-hash-pairs)))
-                                  (failed-file-list (cl-maplist 'caar (cl-remove-if-not '(lambda (lipair) (null (cdr lipair))) collected-fn-hash-pairs))))
-                              (progress-reporter-done (quote ,reporter))
-                              (if (and (null failed-file-list)
-                                     (> (length collected-fn-hash-pairs) 2)
-                                     (list-has-no-duplicates collected-md5-hashes))
-                                  (dired-async-mode-line-message "backup compare successful" 'dired-async-mode-message)
-                                (dired-async-mode-line-message (format "compare FAILED for files: %s, " (string-join  failed-file-list ", ")) 'dired-async-mode-message)))))))))))
+     (t (duplicity--execute-backup-check-async backup-folder backup-files-buffer folder-backed-up)))))
 
 (provide 'duplicity-restore-check)
-
-
-
-
-
-
-
-
