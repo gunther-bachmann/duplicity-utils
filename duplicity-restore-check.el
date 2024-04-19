@@ -30,13 +30,15 @@ an alist is returned allowing access like (cdr (assoc \"encryption-key\" alist))
         (format "md5sum %s" (shell-quote-argument (expand-file-name filename)))))
       " "))))
 
-(defun duplicity--restore-file (backup-location filename target-filename)
+(defun duplicity--restore-file (backup-location filename target-filename key)
   "restore FILENAME in duplicity backup at BACKUP-LOCATION to TARGET-FILENAME"
-  (shell-command
-   (format "duplicity restore --use-agent --file-to-restore %s %s %s"
-           (shell-quote-argument filename)
-           (shell-quote-argument (concat "file://" backup-location))
-           (shell-quote-argument (expand-file-name target-filename)))))
+  (let ((cmd (format "duplicity restore --use-agent --encrypt-key %s --path-to-restore %s %s %s"
+                     key
+                     (shell-quote-argument filename)
+                     (shell-quote-argument (concat "file://" backup-location))
+                     (shell-quote-argument (expand-file-name target-filename)))))
+    ;; (message "command: %s" cmd)
+    (shell-command cmd)))
 
 (defun duplicity--list-current-files-into (backup-location buffer-name)
   "restore FILENAME in duplicity backup at BACKUP-LOCATION to TARGET-FILENAME"
@@ -146,13 +148,13 @@ this will include:
 
 ;; (duplicity--readable-file-size ".bash_history" "~")
 
-(defun duplicity--restore-file-and-compare (backup-folder filename folder-backed-up)
+(defun duplicity--restore-file-and-compare (backup-folder filename folder-backed-up key)
   "restore the FILENAME into a temporary file, return the hash md5 hashes match"
   (let ((temp-file (make-temp-file "restored"))
         (result nil)
         (rest-md5 nil))
     (delete-file temp-file)
-    (duplicity--restore-file backup-folder filename temp-file)
+    (duplicity--restore-file backup-folder filename temp-file key)
     (ignore-errors
       (let ((orig-md5 (md5sum (expand-file-name (concat (duplicity--make-folder-prefix folder-backed-up) filename)))))
         (setq rest-md5 (md5sum temp-file))
@@ -193,7 +195,7 @@ this will include:
                 500))
       (message "check makes only sense for backups of size 500+ files, found only %d"
                (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
-     (t (duplicity--execute-backup-check backup-folder backup-files-buffer folder-backed-up)))))
+     (t (duplicity--execute-backup-check backup-folder backup-files-buffer folder-backed-up key)))))
 
 (defun duplicity--check-add-modeline-status () "" (duplicity--async-modeline-mode 1) (setq duplicity--progress-string "...") (force-mode-line-update t))
 (defun duplicity--check-update-modeline-status (new-str)  "" (setq duplicity--progress-string new-str) (force-mode-line-update t))
@@ -209,7 +211,7 @@ this will include:
   (unless duplicity--async-modeline-mode
     (let ((visible-bell t)) (ding))))
 
-(defun duplicity--execute-backup-check (backup-folder backup-files-buffer folder-backed-up)
+(defun duplicity--execute-backup-check (backup-folder backup-files-buffer folder-backed-up key)
   ""
   (unwind-protect
       (progn
@@ -225,7 +227,7 @@ this will include:
                         (message "checking latest backup (%d/%d, failed %d: %s)" num last-num (length failed-file-list) file-name)                         
                         (duplicity--check-update-modeline-status (format "%d/%d" num last-num))
                         (setq num (1+ num))                 
-                        (let ((result (duplicity--restore-file-and-compare backup-folder file-name folder-backed-up)))
+                        (let ((result (duplicity--restore-file-and-compare backup-folder file-name folder-backed-up key)))
                           (unless result
                             (setq failed-file-list (cons file-name failed-file-list)))
                           result))
@@ -238,7 +240,7 @@ this will include:
                          '(("accept" ?a "accept the difference and take measures"))))))
     (duplicity--check-remove-modeline-status)))
 
-(defun duplicity--execute-backup-check-async (backup-folder backup-files-buffer folder-backed-up)
+(defun duplicity--execute-backup-check-async (backup-folder backup-files-buffer folder-backed-up key)
   "do actual backup check asynchronously"
   (duplicity--check-add-modeline-status)
   (let* ((num 1)
@@ -257,7 +259,7 @@ this will include:
                                       (async-send :status 
                                                   (format "checking latest backup (%d/%d: %s)" num last-num (car file-name)))                                            
                                       (setq num (1+ num))
-                                      (cons (car file-name) (duplicity--restore-file-and-compare ,backup-folder (car file-name) ,folder-backed-up))))
+                                      (cons (car file-name) (duplicity--restore-file-and-compare ,backup-folder (car file-name) ,folder-backed-up ,key))))
                                   (quote ,file-list))))
                  `(lambda (collected-fn-hash-pairs)
                     (require 'dired-async)
@@ -296,6 +298,6 @@ this will include:
                 500))
       (message "check makes only sense for backups of size 500+ files, found only %d"
                (duplicity--files-buffer--get-number backup-folder backup-files-buffer)))
-     (t (duplicity--execute-backup-check-async backup-folder backup-files-buffer folder-backed-up)))))
+     (t (duplicity--execute-backup-check-async backup-folder backup-files-buffer folder-backed-up key)))))
 
 (provide 'duplicity-restore-check)
