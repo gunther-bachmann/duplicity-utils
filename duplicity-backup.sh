@@ -463,8 +463,11 @@ run_backup() {
          --encrypt-key ${ENCRYPTION_KEY} \
          --verbosity 4 \
          --allow-source-mismatch \
-         --use-agent \
-         --gpg-options \"--no-tty --pinentry-mode error\""
+         --use-agent"
+
+  # CMD="${CMD} \
+  #       --gpg-options \"--no-tty --pinentry-mode error\" "
+  # CMD="${CMD} --gpg-options \"--pinentry-mode loopback\""
 
   if [ "$INCLUDE_FILELIST" != "" ]; then
     CMD="${CMD} --include-filelist ${INCLUDE_FILELIST}"
