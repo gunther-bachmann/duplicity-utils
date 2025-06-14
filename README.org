@@ -6,6 +6,8 @@
 
    Project development makes extensive use of [[https://www.gnu.org/software/emacs/][emacs]], [[https://racket-lang.org/][racket]], [[https://nixos.org/nix/][nix]] and [[https://direnv.net/][direnv]].
 
+   Make is done via cli by ~raco make duplicity-fib-discard.rkt~.
+
    Run tests within emacs using [[https://github.com/greghendershott/racket-mode][racket-mode]] via ~C-c C-t~.
    Run all tests from cli via ~raco test .~ in the project root.
 
